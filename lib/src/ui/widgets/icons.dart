@@ -16,6 +16,7 @@ enum AppIcon {
   undo,
   chevronLeft,
   chevronRight,
+  menu,
 }
 
 class Icon extends StatelessWidget {
@@ -172,6 +173,16 @@ class _IconPainter extends CustomPainter {
           ..lineTo(c.dx - r * 0.75, c.dy + r * 0.25)
           ..close();
         canvas.drawPath(head, fill);
+
+      // 汉堡：GNOME 主菜单的通行符号
+      case AppIcon.menu:
+        for (final fy in <double>[0.3, 0.5, 0.7]) {
+          canvas.drawLine(
+            Offset(w * 0.2, h * fy),
+            Offset(w * 0.8, h * fy),
+            stroke,
+          );
+        }
 
       case AppIcon.chevronLeft:
         final path = Path()

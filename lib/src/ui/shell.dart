@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/services.dart';
@@ -21,6 +22,7 @@ import 'timeline/thumbnail_cache.dart';
 import 'timeline/timeline_panel.dart';
 import 'transport_bar.dart';
 import 'video_pane.dart';
+import 'window_menu.dart';
 import 'widgets/button.dart';
 import 'widgets/icons.dart' as ic;
 
@@ -359,34 +361,36 @@ class _AppShellState extends State<AppShell> {
     final info = _state.info;
     final hasVideo = info != null && _state.phase == LoadPhase.ready;
 
+    final menuActions = AppMenuActions(
+      onOpen: _open,
+      onAbout: () => setState(() => _aboutOpen = true),
+      onCloseFile: hasVideo ? _closeFile : null,
+      onExport: _state.segments.isNotEmpty && !_exporting ? _export : null,
+      onUndo: _state.canUndo ? _state.undo : null,
+      onDeleteSelected:
+          _state.selectedId != null ? _state.deleteSelected : null,
+      onClearAll: _state.segments.isNotEmpty ? _state.clearAll : null,
+      onPlayPause: hasVideo ? _player.playPause : null,
+      onFaster: hasVideo ? _player.faster : null,
+      onSlower: hasVideo ? _player.slower : null,
+      onResetRate: hasVideo ? _player.resetRate : null,
+      onBack5:
+          hasVideo ? () => _player.nudge(const Duration(seconds: -5)) : null,
+      onForward5:
+          hasVideo ? () => _player.nudge(const Duration(seconds: 5)) : null,
+      onPrevFrame: hasVideo ? () => _player.nudge(-info.frameDuration) : null,
+      onNextFrame: hasVideo ? () => _player.nudge(info.frameDuration) : null,
+      onMarkIn: hasVideo ? () => _state.markIn(_player.position) : null,
+      onMarkOut: hasVideo && _state.pendingIn != null
+          ? () => _state.markOut(_player.position)
+          : null,
+      onRetro: hasVideo ? () => _state.retroMark(_player.position) : null,
+      onCancelPending: _state.pendingIn != null ? _state.cancelPending : null,
+      retroSeconds: AppMetrics.retroSeconds,
+    );
+
     return AppMenu(
-      actions: AppMenuActions(
-        onOpen: _open,
-        onAbout: () => setState(() => _aboutOpen = true),
-        onCloseFile: hasVideo ? _closeFile : null,
-        onExport: _state.segments.isNotEmpty && !_exporting ? _export : null,
-        onUndo: _state.canUndo ? _state.undo : null,
-        onDeleteSelected:
-            _state.selectedId != null ? _state.deleteSelected : null,
-        onClearAll: _state.segments.isNotEmpty ? _state.clearAll : null,
-        onPlayPause: hasVideo ? _player.playPause : null,
-        onFaster: hasVideo ? _player.faster : null,
-        onSlower: hasVideo ? _player.slower : null,
-        onResetRate: hasVideo ? _player.resetRate : null,
-        onBack5:
-            hasVideo ? () => _player.nudge(const Duration(seconds: -5)) : null,
-        onForward5:
-            hasVideo ? () => _player.nudge(const Duration(seconds: 5)) : null,
-        onPrevFrame: hasVideo ? () => _player.nudge(-info.frameDuration) : null,
-        onNextFrame: hasVideo ? () => _player.nudge(info.frameDuration) : null,
-        onMarkIn: hasVideo ? () => _state.markIn(_player.position) : null,
-        onMarkOut: hasVideo && _state.pendingIn != null
-            ? () => _state.markOut(_player.position)
-            : null,
-        onRetro: hasVideo ? () => _state.retroMark(_player.position) : null,
-        onCancelPending: _state.pendingIn != null ? _state.cancelPending : null,
-        retroSeconds: AppMetrics.retroSeconds,
-      ),
+      actions: menuActions,
       child: Focus(
         focusNode: _focus,
         autofocus: true,
@@ -401,6 +405,7 @@ class _AppShellState extends State<AppShell> {
                     info: info,
                     keyframesLoading: _state.keyframesLoading,
                     onOpen: _open,
+                    menuActions: menuActions,
                   ),
                   Expanded(
                     child: Row(
@@ -507,11 +512,13 @@ class _TitleBar extends StatelessWidget {
     required this.info,
     required this.keyframesLoading,
     required this.onOpen,
+    required this.menuActions,
   });
 
   final dynamic info;
   final bool keyframesLoading;
   final VoidCallback onOpen;
+  final AppMenuActions menuActions;
 
   @override
   Widget build(BuildContext context) {
@@ -553,6 +560,9 @@ class _TitleBar extends StatelessWidget {
               Text('${(info.keyframes as List).length} 关键帧',
                   style: AppText.label),
           ],
+          const Spacer(),
+          // macOS 已有原生 NSMenu 菜单栏，这里不重复
+          if (!Platform.isMacOS) WindowMenuButton(actions: menuActions),
         ],
       ),
     );
