@@ -136,7 +136,7 @@ static void menu_method_call_cb(FlMethodChannel* channel,
   fl_method_call_respond_success(method_call, result, nullptr);
 }
 
-// 构建 GNOME 规范的「主菜单」：标题栏右侧的汉堡按钮 + popover。
+// 构建「主菜单」：标题栏左侧的汉堡按钮 + popover。
 //
 // 快捷键只写进标签文本，**不注册为 GTK 加速键**：注册后按键会被 GTK 抢先
 // 消费，Flutter 侧的同名处理就收不到，容易出现按一次执行两遍或完全失效。
@@ -166,6 +166,9 @@ static GtkWidget* build_primary_menu_button(MyApplication* self) {
 
   GtkWidget* button = gtk_menu_button_new();
   gtk_menu_button_set_direction(GTK_MENU_BUTTON(button), GTK_ARROW_NONE);
+  // 去掉按钮边框，与 GNOME 各应用标题栏上的图标按钮保持一致；
+  // 有框的按钮在标题栏里会显得突兀
+  gtk_style_context_add_class(gtk_widget_get_style_context(button), "flat");
   gtk_menu_button_set_use_popover(GTK_MENU_BUTTON(button), TRUE);
   gtk_menu_button_set_menu_model(GTK_MENU_BUTTON(button), G_MENU_MODEL(menu));
   gtk_widget_set_tooltip_text(button, "主菜单");
@@ -258,8 +261,8 @@ static void my_application_activate(GApplication* application) {
     gtk_widget_show(GTK_WIDGET(header_bar));
     gtk_header_bar_set_title(header_bar, "剪金");
     gtk_header_bar_set_show_close_button(header_bar, TRUE);
-    // GNOME 的「主菜单」惯例位置：标题栏右端
-    gtk_header_bar_pack_end(header_bar, build_primary_menu_button(self));
+    // 汉堡按钮放标题栏左端
+    gtk_header_bar_pack_start(header_bar, build_primary_menu_button(self));
     self->has_native_menu = TRUE;
     gtk_window_set_titlebar(window, GTK_WIDGET(header_bar));
   } else {
