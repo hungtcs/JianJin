@@ -135,30 +135,41 @@ class AppState extends ChangeNotifier {
       return;
     }
 
-    // 关键帧、波形、缩略图都在后台跑，各自就绪各自刷新，不阻塞播放
-    _loadKeyframes(path);
-    _loadWaveform(path);
-    _loadThumbnails();
+    // 三个分析任务**串行**执行，各自就绪各自刷新。
+    // 并行会和 mpv 的解码一起抢 CPU——软解 4K 时这足以让播放卡顿。
+    _runAnalysis(path);
   }
 
-  void _loadKeyframes(String path) {
+  /// 后台分析流水线。顺序是按「先决条件 + 代价」排的：
+  /// 关键帧最先（切割正确性依赖它，且只读容器索引不解码）；
+  /// 波形其次（实测约 0.1 秒，几乎免费）；
+  /// 缩略图最后，且要用关键帧数量来决定抽稀步长。
+  Future<void> _runAnalysis(String path) async {
+    await _loadKeyframes(path);
+    if (_info?.path != path) return;
+    await _loadWaveform(path);
+    if (_info?.path != path) return;
+    await _loadThumbnails();
+  }
+
+  Future<void> _loadKeyframes(String path) async {
     _keyframesLoading = true;
     notifyListeners();
-    _kfSub = _probe.keyframes(path).listen(
-      (list) {
+    try {
+      // 边扫边刷新，时间轴上的关键帧刻度会渐进出现，不必干等
+      await for (final list in _probe.keyframes(path)) {
         if (_info?.path != path) return;
         _info = _info!.copyWith(keyframes: list);
         notifyListeners();
-      },
-      onDone: () {
+      }
+    } catch (_) {
+      // 拿不到关键帧不影响播放与打点，只是无损切割会退化为不吸附
+    } finally {
+      if (_info?.path == path) {
         _keyframesLoading = false;
         notifyListeners();
-      },
-      onError: (_) {
-        _keyframesLoading = false;
-        notifyListeners();
-      },
-    );
+      }
+    }
   }
 
   Future<void> _loadWaveform(String path) async {
@@ -176,12 +187,17 @@ class AppState extends ChangeNotifier {
     if (info == null) return;
     _thumbnailsLoading = true;
     notifyListeners();
+
     final dir = p.join(
       Directory.systemTemp.path,
       'jianjin_thumbs',
       p.basenameWithoutExtension(info.path).hashCode.toRadixString(16),
     );
-    final files = await _ffmpeg.thumbnails(info: info, cacheDir: dir);
+    final files = await _ffmpeg.thumbnails(
+      info: info,
+      cacheDir: dir,
+      keyframeCount: info.keyframes.length,
+    );
     if (_info?.path != info.path) return;
     _thumbnails = files;
     _thumbnailsLoading = false;
