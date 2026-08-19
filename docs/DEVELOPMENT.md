@@ -46,9 +46,10 @@ done
 所以不能只靠 `PATH`）。
 
 ```bash
-brew install ffmpeg          # macOS
-sudo apt install ffmpeg      # Debian/Ubuntu
-winget install ffmpeg        # Windows
+brew install ffmpeg              # macOS
+sudo dnf install ffmpeg-free     # Fedora（主仓即可，无需 RPM Fusion）
+sudo apt install ffmpeg          # Debian/Ubuntu
+winget install ffmpeg            # Windows
 ```
 
 ## 运行
@@ -96,10 +97,26 @@ linux/packaging/install.sh --uninstall
 | `ffmpeg` | 切割与分析 | `ffmpeg` | `ffmpeg` | `ffmpeg` |
 | GTK 3 | 窗口 | `libgtk-3-0` | `gtk3` | `gtk3` |
 
-构建时另需 `libmpv-dev`、`libgtk-3-dev`、`clang`、`cmake`、`ninja-build`、
-`pkg-config`、`liblzma-dev`。Fedora 对应为 `libmpv-devel`、`gtk3-devel`、
-`glib2-devel`、`xz-devel`、`clang`、`cmake`、`ninja-build`、
-`pkgconf-pkg-config`（`libmpv-devel` / `ffmpeg` 缺失时需启用 RPM Fusion free）。
+### 构建依赖
+
+**Fedora**（以下组合已在纯净 `fedora:41` 容器中实测通过，**无需 RPM Fusion**）：
+
+```bash
+sudo dnf install clang cmake ninja-build pkgconf-pkg-config \
+                 gtk3-devel xz-devel libstdc++-devel mpv-libs-devel
+# 打 RPM 另需：
+sudo dnf install rpm-build desktop-file-utils
+```
+
+注意包名是 **`mpv-libs-devel`**（Fedora 没有 `libmpv-devel` 这个包）。
+它在 Fedora 主仓即可获得，`pkg-config --modversion mpv` 应输出 2.3.0 或更高。
+
+**Debian / Ubuntu**：
+
+```bash
+sudo apt install clang cmake ninja-build pkg-config \
+                 libgtk-3-dev liblzma-dev libmpv-dev
+```
 
 ### RPM（Fedora）
 
