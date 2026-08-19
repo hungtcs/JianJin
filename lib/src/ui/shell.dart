@@ -15,6 +15,7 @@ import '../services/reveal.dart';
 import '../state/app_state.dart';
 import 'about_dialog.dart';
 import 'app_menu.dart';
+import 'native_menu_bridge.dart';
 import 'confirm_overwrite.dart';
 import 'segment_list.dart';
 import 'theme.dart';
@@ -75,6 +76,7 @@ class _AppShellState extends State<AppShell> {
       final info = await PackageInfo.fromPlatform();
       if (!mounted) return;
       setState(() => _version = info.version);
+      NativeMenuBridge.instance.setAbout(version: info.version);
     } catch (_) {
       // 读不到就不显示版本，不影响其它功能
     }
@@ -383,6 +385,8 @@ class _AppShellState extends State<AppShell> {
       onCancelPending: _state.pendingIn != null ? _state.cancelPending : null,
     );
 
+    NativeMenuBridge.instance.sync(menuActions);
+
     return AppMenu(
       actions: menuActions,
       child: Focus(
@@ -445,7 +449,7 @@ class _AppShellState extends State<AppShell> {
                     onMarkIn: () => _state.markIn(_player.position),
                     onMarkOut: () => _state.markOut(_player.position),
                     onUndo: _state.undo,
-                    onExport: _export,
+                          onExport: _export,
                     exporting: _exporting,
                     exportProgress: _exportProgress,
                     exportLabel: _exportLabel,
@@ -554,8 +558,15 @@ class _TitleBar extends StatelessWidget {
                   style: AppText.label),
           ],
           const Spacer(),
-          // macOS 已有原生 NSMenu 菜单栏，这里不重复
-          if (!Platform.isMacOS) WindowMenuButton(actions: menuActions),
+          // macOS 有原生 NSMenu；Linux 在 GNOME 下有标题栏原生菜单。
+          // 只有确实没有原生入口时才显示窗口内的汉堡按钮。
+          if (!Platform.isMacOS)
+            ValueListenableBuilder<bool>(
+              valueListenable: NativeMenuBridge.instance.hasNativeMenu,
+              builder: (context, hasNative, _) => hasNative
+                  ? const SizedBox.shrink()
+                  : WindowMenuButton(actions: menuActions),
+            ),
         ],
       ),
     );

@@ -83,7 +83,7 @@ class AboutPanel extends StatelessWidget {
                   warn: ffmpegVersion == null,
                 ),
                 const SizedBox(height: 7),
-                const _Row(label: '界面', value: 'Flutter，全部自绘'),
+                const _Row(label: '界面', value: 'Flutter'),
                 const SizedBox(height: 18),
                 Row(
                   children: [
