@@ -1,0 +1,37 @@
+name: jianjin
+description: 剪金 JianJin —— 快速挑选视频中有用的片段并无损导出
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # 播放：libmpv，能播 ffmpeg 能解的一切
+  media_kit: ^1.1.10
+  media_kit_video: ^1.2.4
+  media_kit_libs_video: ^1.0.4
+
+  # 原生文件对话框（"原生感"的关键一环）
+  file_selector: ^1.0.3
+
+  path: ^1.9.0
+
+  # 运行时读取真实 bundle 版本，避免手工同步的版本常量
+  package_info_plus: ^8.0.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: false
+
+  # 只打包 PNG；源 SVG 放在 design/ 下，不进产物
+  assets:
+    - assets/logo/logo_full.png
+    - assets/logo/logo_icon.png

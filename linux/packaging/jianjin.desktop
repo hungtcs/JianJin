@@ -1,0 +1,17 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=JianJin
+Name[zh_CN]=剪金
+GenericName=Video Segment Picker
+GenericName[zh_CN]=视频片段筛选器
+Comment=Quickly pick useful segments from a video and export them losslessly
+Comment[zh_CN]=快速挑选视频中有用的片段并无损导出
+Exec=jianjin %f
+Icon=jianjin
+Terminal=false
+Categories=AudioVideo;Video;AudioVideoEditing;
+Keywords=video;clip;cut;trim;segment;ffmpeg;
+MimeType=video/mp4;video/x-matroska;video/quicktime;video/x-msvideo;video/webm;video/mpeg;video/x-flv;
+StartupNotify=true
+StartupWMClass=jianjin

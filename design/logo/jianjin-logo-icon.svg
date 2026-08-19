@@ -1,0 +1,24 @@
+<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F7D774"/>
+      <stop offset="50%" stop-color="#E8B23A"/>
+      <stop offset="100%" stop-color="#B8791C"/>
+    </linearGradient>
+  </defs>
+
+  <!-- 深色帧：代表视频/素材 -->
+  <rect x="0" y="0" width="200" height="200" rx="44" fill="#1E1B18"/>
+
+  <!-- 时间轴（未选中的素材） -->
+  <rect x="30" y="130" width="140" height="14" rx="7" fill="#52483E"/>
+
+  <!-- 被选中的黄金片段 -->
+  <rect x="90" y="130" width="42" height="14" rx="7" fill="url(#goldGrad)"/>
+
+
+  <!-- 金块（提炼出的精华） -->
+  <polygon points="111,53 133,75 111,97 89,75" fill="url(#goldGrad)" stroke="#8A5A12" stroke-width="2"/>
+  <line x1="111" y1="75" x2="111" y2="53" stroke="#FFF3D0" stroke-width="2" opacity="0.7" stroke-linecap="round"/>
+  <line x1="111" y1="75" x2="89" y2="75" stroke="#FFF3D0" stroke-width="2" opacity="0.5" stroke-linecap="round"/>
+</svg>

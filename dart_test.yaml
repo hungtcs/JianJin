@@ -1,0 +1,7 @@
+tags:
+  integration:
+    description: 需要本机存在 ffmpeg/ffprobe 的端到端测试
+  shots:
+    description: 把界面渲染成 PNG 供人工查看；字体在测试环境下是方框，
+      像素结果依机器而异，因此默认跳过
+    skip: "按需运行：flutter test --run-skipped -t shots --update-goldens"
