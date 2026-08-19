@@ -23,9 +23,7 @@ class AppMenuActions {
     this.onNextFrame,
     this.onMarkIn,
     this.onMarkOut,
-    this.onRetro,
     this.onCancelPending,
-    this.retroSeconds = 12,
   });
 
   final VoidCallback onOpen;
@@ -48,10 +46,8 @@ class AppMenuActions {
 
   final VoidCallback? onMarkIn;
   final VoidCallback? onMarkOut;
-  final VoidCallback? onRetro;
   final VoidCallback? onCancelPending;
 
-  final int retroSeconds;
 }
 
 /// 真正的系统菜单栏（macOS 上是原生 NSMenu）。
@@ -202,10 +198,6 @@ class AppMenu extends StatelessWidget {
             PlatformMenuItem(
               label: '标出点  (O)',
               onSelected: actions.onMarkOut,
-            ),
-            PlatformMenuItem(
-              label: '回补 ${actions.retroSeconds} 秒  (A)',
-              onSelected: actions.onRetro,
             ),
             PlatformMenuItemGroup(members: [
               PlatformMenuItem(

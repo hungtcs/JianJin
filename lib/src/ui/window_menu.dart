@@ -45,7 +45,6 @@ class _WindowMenuButtonState extends State<WindowMenuButton> {
       const _Sep(),
       _Item('标入点', 'I', a.onMarkIn),
       _Item('标出点', 'O', a.onMarkOut),
-      _Item('回补 ${a.retroSeconds} 秒', 'A', a.onRetro),
       const _Sep(),
       _Item('播放 / 暂停', 'Space', a.onPlayPause),
       _Item('加速', 'L', a.onFaster),

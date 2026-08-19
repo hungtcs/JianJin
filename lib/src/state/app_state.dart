@@ -9,7 +9,6 @@ import '../models/segment.dart';
 import '../models/video_info.dart';
 import '../services/ffmpeg_service.dart';
 import '../services/ffprobe_service.dart';
-import '../ui/theme.dart';
 
 enum LoadPhase { idle, probing, ready, failed }
 
@@ -219,13 +218,6 @@ class AppState extends ChangeNotifier {
     _addSegment(start, at);
   }
 
-  /// 追溯打点：你永远是在片段开始之后才意识到「这段有用」。
-  /// 生成「N 秒前 → 现在」的片段，不用倒回去找起点。
-  void retroMark(Duration now, {int seconds = AppMetrics.retroSeconds}) {
-    final start = now - Duration(seconds: seconds);
-    _addSegment(start < Duration.zero ? Duration.zero : start, now);
-  }
-
   void _addSegment(Duration rawStart, Duration rawEnd) {
     var start = rawStart;
     var end = rawEnd;
@@ -236,7 +228,6 @@ class AppState extends ChangeNotifier {
     }
 
     // 显式打点不加留白：用户按 I/O 标的是哪就是哪，可预测优先。
-    // 「反应慢半拍」的场景由回补键 A 覆盖，那里才需要往前找。
     if (start < Duration.zero) start = Duration.zero;
     final dur = _info?.duration;
     if (dur != null && end > dur) end = dur;

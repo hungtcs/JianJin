@@ -9,7 +9,6 @@ enum AppIcon {
   pause,
   markIn,
   markOut,
-  retro,
   delete,
   export,
   folder,
@@ -106,24 +105,6 @@ class _IconPainter extends CustomPainter {
           ..lineTo(w * 0.58, h * 0.78)
           ..close();
         canvas.drawPath(tri, fill);
-
-      // 追溯：逆时针箭头，表示「回头补一段」
-      case AppIcon.retro:
-        final r = w * 0.3;
-        final c = Offset(w * 0.5, h * 0.54);
-        canvas.drawArc(
-          Rect.fromCircle(center: c, radius: r),
-          math.pi * 0.85,
-          math.pi * 1.35,
-          false,
-          stroke,
-        );
-        final head = Path()
-          ..moveTo(c.dx - r * 1.05, c.dy - r * 0.42)
-          ..lineTo(c.dx - r * 0.28, c.dy - r * 0.62)
-          ..lineTo(c.dx - r * 0.72, c.dy + r * 0.16)
-          ..close();
-        canvas.drawPath(head, fill);
 
       case AppIcon.delete:
         canvas.drawLine(

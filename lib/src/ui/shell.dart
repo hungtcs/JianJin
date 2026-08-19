@@ -296,10 +296,6 @@ class _AppShellState extends State<AppShell> {
       }
       return KeyEventResult.handled;
     }
-    if (k == LogicalKeyboardKey.keyA) {
-      _state.retroMark(pos);
-      return KeyEventResult.handled;
-    }
     if (k == LogicalKeyboardKey.keyL) {
       _player.faster();
       return KeyEventResult.handled;
@@ -384,9 +380,7 @@ class _AppShellState extends State<AppShell> {
       onMarkOut: hasVideo && _state.pendingIn != null
           ? () => _state.markOut(_player.position)
           : null,
-      onRetro: hasVideo ? () => _state.retroMark(_player.position) : null,
       onCancelPending: _state.pendingIn != null ? _state.cancelPending : null,
-      retroSeconds: AppMetrics.retroSeconds,
     );
 
     return AppMenu(
@@ -450,7 +444,6 @@ class _AppShellState extends State<AppShell> {
                     pendingIn: _state.pendingIn,
                     onMarkIn: () => _state.markIn(_player.position),
                     onMarkOut: () => _state.markOut(_player.position),
-                    onRetro: () => _state.retroMark(_player.position),
                     onUndo: _state.undo,
                     onExport: _export,
                     exporting: _exporting,

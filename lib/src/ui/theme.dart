@@ -47,12 +47,9 @@ class AppMetrics {
   static const gap = 8.0;
   static const padding = 12.0;
 
-  /// 显式打点（I/O）不加留白，保持可预测。
-  /// 反应滞后由回补键 A 覆盖。
+  /// 显式打点（I/O）不加留白：用户标的是哪就是哪，可预测优先。
   static const markPaddingMs = 0;
 
-  /// 追溯打点回溯长度
-  static const retroSeconds = 12;
 }
 
 /// 跨平台系统字体栈，避免 Flutter 默认 Roboto 的「安卓味」

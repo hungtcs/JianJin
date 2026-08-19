@@ -16,7 +16,6 @@ class TransportBar extends StatelessWidget {
     required this.pendingIn,
     required this.onMarkIn,
     required this.onMarkOut,
-    required this.onRetro,
     required this.onUndo,
     required this.onExport,
     required this.exporting,
@@ -35,7 +34,6 @@ class TransportBar extends StatelessWidget {
 
   final VoidCallback onMarkIn;
   final VoidCallback onMarkOut;
-  final VoidCallback onRetro;
   final VoidCallback onUndo;
   final VoidCallback onExport;
   final bool exporting;
@@ -108,13 +106,6 @@ class TransportBar extends StatelessWidget {
             icon: ic.AppIcon.markOut,
             shortcut: 'O',
             onPressed: hasVideo && pendingIn != null ? onMarkOut : null,
-          ),
-          const SizedBox(width: 6),
-          AppButton(
-            label: '回补 ${AppMetrics.retroSeconds}s',
-            icon: ic.AppIcon.retro,
-            shortcut: 'A',
-            onPressed: hasVideo ? onRetro : null,
           ),
           const SizedBox(width: 6),
           AppIconButton(
