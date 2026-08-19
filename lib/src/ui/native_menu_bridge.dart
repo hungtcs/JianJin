@@ -53,6 +53,13 @@ class NativeMenuBridge {
   Future<dynamic> _onNativeCall(MethodCall call) async {
     if (call.method == 'nativeMenu') {
       hasNativeMenu.value = call.arguments as bool? ?? false;
+
+      // C 侧要到此刻才注册好通道处理器，而 Dart 的首帧可能早于此——
+      // 那一次 setEnabled 会因无人接收被直接丢弃。若不清掉缓存重推，
+      // sync 会认为「已经推过了」，菜单便永远停在禁用态。
+      _lastEnabled = null;
+      final actions = _actions;
+      if (actions != null) sync(actions);
       return null;
     }
     if (call.method != 'activate') return null;

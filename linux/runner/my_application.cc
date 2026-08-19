@@ -29,6 +29,13 @@ G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 static const char* kMenuActions[] = {"open",     "close", "export", "undo",
                                      "clearAll", "settings", "about", nullptr};
 
+// 这些动作与是否打开了视频无关，永远可用。单独列出来是为了不参与
+// 「默认禁用、等 Dart 推送真实状态」的流程——万一那次推送没送到，
+// 设置与关于仍然点得开。
+static bool action_always_enabled(const char* name) {
+  return g_strcmp0(name, "settings") == 0 || g_strcmp0(name, "about") == 0;
+}
+
 // 菜单项被激活：把动作名发给 Dart 执行。
 static void menu_action_cb(GSimpleAction* action, GVariant* parameter,
                            gpointer user_data) {
@@ -109,13 +116,18 @@ static GtkWidget* build_primary_menu_button(MyApplication* self) {
   gtk_menu_button_set_menu_model(GTK_MENU_BUTTON(button), G_MENU_MODEL(menu));
   gtk_widget_set_tooltip_text(button, "主菜单");
 
-  // 默认的 GTK_POPOVER_CONSTRAINT_WINDOW 会把面板强制约束在窗口内：
-  // 按钮靠左时面板往左展不开，会被整体推向右侧，箭头相对面板的位置就偏了。
-  // 放开约束后面板可以正常地以按钮为中心向下展开，和其它 GNOME 应用一致。
+  // 位置沿用 GTK 默认的窗口内约束，与其它 GNOME 应用一致。
+  //
+  // 曾经在此设过 GTK_POPOVER_CONSTRAINT_NONE 想让面板正对按钮居中，那是错的：
+  // 放开约束后 GTK 按「居中于按钮」算出的位置会越出窗口左边界，再由 Wayland
+  // 合成器强行推回窗口内——而箭头是按越界前的坐标画的，于是面板右移、箭头对
+  // 不上。GTK 自带的约束会同时调整面板与箭头，保持二者一致。
+  //
+  // 另注：gtk_menu_button_set_direction 对 popover 不起作用（GTK 文档明确说明
+  // 它只用于 menu），所以位置只由 popover 自身的约束决定。
   GtkPopover* popover =
       GTK_POPOVER(gtk_menu_button_get_popover(GTK_MENU_BUTTON(button)));
   if (popover != nullptr) {
-    gtk_popover_set_constrain_to(popover, GTK_POPOVER_CONSTRAINT_NONE);
     gtk_popover_set_position(popover, GTK_POS_BOTTOM);
   }
 
@@ -130,9 +142,9 @@ static GtkWidget* build_primary_menu_button(MyApplication* self) {
 static void install_menu_actions(MyApplication* self, GtkWindow* window) {
   for (int i = 0; kMenuActions[i] != nullptr; i++) {
     GSimpleAction* action = g_simple_action_new(kMenuActions[i], nullptr);
-    // 默认禁用，Dart 侧就绪后立刻推送真实状态；反过来（默认可用）
+    // 其余动作默认禁用，等 Dart 侧推送真实状态；反过来（默认可用）
     // 会在启动瞬间露出一批点了没反应的菜单项。
-    g_simple_action_set_enabled(action, FALSE);
+    g_simple_action_set_enabled(action, action_always_enabled(kMenuActions[i]));
     g_signal_connect(action, "activate", G_CALLBACK(menu_action_cb), self);
     g_action_map_add_action(G_ACTION_MAP(window), G_ACTION(action));
     g_object_unref(action);
