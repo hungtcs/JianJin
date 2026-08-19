@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:jianjin/src/models/segment.dart';
 import 'package:jianjin/src/ui/theme.dart';
 import 'package:jianjin/src/ui/timeline/thumbnail_cache.dart';
+import 'package:jianjin/src/ui/timeline/detail_timeline.dart';
 import 'package:jianjin/src/ui/timeline/timeline_panel.dart';
 
 /// 回归测试：TimelinePanel 曾经在 Column 里因为
@@ -65,8 +66,8 @@ void main() {
     final panel = tester.getSize(find.byType(TimelinePanel));
     expect(
       panel.height,
-      AppMetrics.overviewHeight + AppMetrics.detailHeight,
-      reason: '面板总高应等于两条轨之和，不应被撑开或压缩',
+      AppMetrics.overviewHeight + const TimelineBands().totalHeight,
+      reason: '面板总高应等于两条轨之和，且细节轨高度必须来自 TimelineBands',
     );
   });
 

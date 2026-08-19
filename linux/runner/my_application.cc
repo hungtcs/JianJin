@@ -20,19 +20,14 @@ struct _MyApplication {
   // 放不下 popover 按钮，此时要让 Dart 侧退回窗口内菜单，
   // 否则那些桌面上会完全没有菜单入口。
   gboolean has_native_menu;
-
-  // 「关于」对话框要显示的信息，由 Dart 侧推送（版本号来自 bundle，
-  // ffmpeg 版本是启动时探测的结果）
-  gchar* about_version;
-  gchar* about_ffmpeg;
 };
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 
 // 菜单动作。与 Dart 侧 AppMenuActions 的字段一一对应，
 // 名字即通道上传递的标识。「关于」不在此列——它由 GtkAboutDialog 就地处理。
-static const char* kMenuActions[] = {"open", "close",    "export",
-                                     "undo", "clearAll", nullptr};
+static const char* kMenuActions[] = {"open",     "close", "export", "undo",
+                                     "clearAll", "settings", "about", nullptr};
 
 // 菜单项被激活：把动作名发给 Dart 执行。
 static void menu_action_cb(GSimpleAction* action, GVariant* parameter,
@@ -45,52 +40,6 @@ static void menu_action_cb(GSimpleAction* action, GVariant* parameter,
       fl_value_new_string(g_action_get_name(G_ACTION(action)));
   fl_method_channel_invoke_method(self->menu_channel, "activate", args, nullptr,
                                   nullptr, nullptr);
-}
-
-// 关于对话框用 GTK 原生实现，而不是在 Flutter 里画一层浮层——
-// 它是独立窗口，可移动、有自己的关闭按钮，符合桌面预期。
-static void about_action_cb(GSimpleAction* action, GVariant* parameter,
-                            gpointer user_data) {
-  MyApplication* self = MY_APPLICATION(user_data);
-
-  GtkAboutDialog* dialog = GTK_ABOUT_DIALOG(gtk_about_dialog_new());
-  gtk_window_set_transient_for(GTK_WINDOW(dialog), self->window);
-  gtk_window_set_modal(GTK_WINDOW(dialog), TRUE);
-
-  gtk_about_dialog_set_program_name(dialog, "剪金 JianJin");
-  if (self->about_version != nullptr) {
-    gtk_about_dialog_set_version(dialog, self->about_version);
-  }
-  gtk_about_dialog_set_comments(
-      dialog, "快速挑选视频中有用的片段并无损导出");
-  gtk_about_dialog_set_website(dialog, "https://github.com/hungtcs/JianJin");
-  gtk_about_dialog_set_website_label(dialog, "GitHub");
-  gtk_about_dialog_set_license_type(dialog, GTK_LICENSE_MIT_X11);
-
-  // ffmpeg 找不到是本应用最常见的故障，放在这里方便排查
-  if (self->about_ffmpeg != nullptr) {
-    const gchar* authors[] = {self->about_ffmpeg, nullptr};
-    gtk_about_dialog_set_authors(dialog, authors);
-  }
-
-  g_autofree gchar* exe_path = g_file_read_link("/proc/self/exe", nullptr);
-  if (exe_path != nullptr) {
-    g_autofree gchar* exe_dir = g_path_get_dirname(exe_path);
-    g_autofree gchar* icon_path =
-        g_build_filename(exe_dir, "data", "icons", "app_icon.png", nullptr);
-    if (g_file_test(icon_path, G_FILE_TEST_EXISTS)) {
-      g_autoptr(GError) error = nullptr;
-      GdkPixbuf* logo = gdk_pixbuf_new_from_file_at_size(icon_path, 96, 96,
-                                                         &error);
-      if (logo != nullptr) {
-        gtk_about_dialog_set_logo(dialog, logo);
-        g_object_unref(logo);
-      }
-    }
-  }
-
-  g_signal_connect(dialog, "response", G_CALLBACK(gtk_widget_destroy), nullptr);
-  gtk_widget_show_all(GTK_WIDGET(dialog));
 }
 
 // Dart 侧推送过来的状态：菜单项可用性、关于对话框的信息。
@@ -115,20 +64,6 @@ static void menu_method_call_cb(FlMethodChannel* channel,
         g_simple_action_set_enabled(G_SIMPLE_ACTION(action),
                                     fl_value_get_bool(value));
       }
-    }
-  } else if (g_strcmp0(method, "setAbout") == 0 && args != nullptr &&
-             fl_value_get_type(args) == FL_VALUE_TYPE_MAP) {
-    FlValue* version = fl_value_lookup_string(args, "version");
-    if (version != nullptr &&
-        fl_value_get_type(version) == FL_VALUE_TYPE_STRING) {
-      g_free(self->about_version);
-      self->about_version = g_strdup(fl_value_get_string(version));
-    }
-    FlValue* ffmpeg = fl_value_lookup_string(args, "ffmpeg");
-    if (ffmpeg != nullptr &&
-        fl_value_get_type(ffmpeg) == FL_VALUE_TYPE_STRING) {
-      g_free(self->about_ffmpeg);
-      self->about_ffmpeg = g_strdup(fl_value_get_string(ffmpeg));
     }
   }
 
@@ -161,6 +96,7 @@ static GtkWidget* build_primary_menu_button(MyApplication* self) {
   g_menu_append_section(menu, nullptr, G_MENU_MODEL(edit_section));
 
   g_autoptr(GMenu) app_section = g_menu_new();
+  g_menu_append(app_section, "设置…   Ctrl+,", "win.settings");
   g_menu_append(app_section, "关于剪金", "win.about");
   g_menu_append_section(menu, nullptr, G_MENU_MODEL(app_section));
 
@@ -173,6 +109,16 @@ static GtkWidget* build_primary_menu_button(MyApplication* self) {
   gtk_menu_button_set_menu_model(GTK_MENU_BUTTON(button), G_MENU_MODEL(menu));
   gtk_widget_set_tooltip_text(button, "主菜单");
 
+  // 默认的 GTK_POPOVER_CONSTRAINT_WINDOW 会把面板强制约束在窗口内：
+  // 按钮靠左时面板往左展不开，会被整体推向右侧，箭头相对面板的位置就偏了。
+  // 放开约束后面板可以正常地以按钮为中心向下展开，和其它 GNOME 应用一致。
+  GtkPopover* popover =
+      GTK_POPOVER(gtk_menu_button_get_popover(GTK_MENU_BUTTON(button)));
+  if (popover != nullptr) {
+    gtk_popover_set_constrain_to(popover, GTK_POPOVER_CONSTRAINT_NONE);
+    gtk_popover_set_position(popover, GTK_POS_BOTTOM);
+  }
+
   GtkWidget* icon =
       gtk_image_new_from_icon_name("open-menu-symbolic", GTK_ICON_SIZE_BUTTON);
   gtk_container_add(GTK_CONTAINER(button), icon);
@@ -184,18 +130,14 @@ static GtkWidget* build_primary_menu_button(MyApplication* self) {
 static void install_menu_actions(MyApplication* self, GtkWindow* window) {
   for (int i = 0; kMenuActions[i] != nullptr; i++) {
     GSimpleAction* action = g_simple_action_new(kMenuActions[i], nullptr);
-    // 默认全部禁用：Dart 侧就绪后会立刻推送真实状态。
-    // 反过来（默认可用）会在启动瞬间露出一批点了没反应的菜单项。
+    // 默认禁用，Dart 侧就绪后立刻推送真实状态；反过来（默认可用）
+    // 会在启动瞬间露出一批点了没反应的菜单项。
     g_simple_action_set_enabled(action, FALSE);
     g_signal_connect(action, "activate", G_CALLBACK(menu_action_cb), self);
     g_action_map_add_action(G_ACTION_MAP(window), G_ACTION(action));
     g_object_unref(action);
   }
 
-  GSimpleAction* about = g_simple_action_new("about", nullptr);
-  g_signal_connect(about, "activate", G_CALLBACK(about_action_cb), self);
-  g_action_map_add_action(G_ACTION_MAP(window), G_ACTION(about));
-  g_object_unref(about);
 }
 
 // Called when first Flutter frame received.
@@ -356,8 +298,6 @@ static void my_application_dispose(GObject* object) {
   MyApplication* self = MY_APPLICATION(object);
   g_clear_pointer(&self->dart_entrypoint_arguments, g_strfreev);
   g_clear_object(&self->menu_channel);
-  g_clear_pointer(&self->about_version, g_free);
-  g_clear_pointer(&self->about_ffmpeg, g_free);
   G_OBJECT_CLASS(my_application_parent_class)->dispose(object);
 }
 

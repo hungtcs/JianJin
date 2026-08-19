@@ -51,6 +51,7 @@ class _WindowMenuButtonState extends State<WindowMenuButton> {
       _Item('减速', 'J', a.onSlower),
       _Item('恢复 1x', 'K', a.onResetRate),
       const _Sep(),
+      _Item('设置…', 'Ctrl+,', a.onSettings),
       _Item('关于剪金', null, a.onAbout),
     ];
   }

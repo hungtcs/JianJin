@@ -50,15 +50,6 @@ class NativeMenuBridge {
     _channel.invokeMethod<void>('setEnabled', enabled);
   }
 
-  /// 「关于」对话框由 GTK 原生绘制，但内容来自这里
-  void setAbout({String? version, String? ffmpeg}) {
-    if (!isSupported) return;
-    _channel.invokeMethod<void>('setAbout', <String, String>{
-      if (version != null) 'version': version,
-      if (ffmpeg != null) 'ffmpeg': ffmpeg,
-    });
-  }
-
   Future<dynamic> _onNativeCall(MethodCall call) async {
     if (call.method == 'nativeMenu') {
       hasNativeMenu.value = call.arguments as bool? ?? false;
@@ -89,6 +80,8 @@ class NativeMenuBridge {
         'forward5' => a.onForward5,
         'prevFrame' => a.onPrevFrame,
         'nextFrame' => a.onNextFrame,
+        'settings' => a.onSettings,
+        'about' => a.onAbout,
         _ => null,
       };
 
@@ -109,6 +102,9 @@ class NativeMenuBridge {
         'forward5': a.onForward5 != null,
         'prevFrame': a.onPrevFrame != null,
         'nextFrame': a.onNextFrame != null,
+        // 设置与关于不依赖是否打开了视频，始终可用
+        'settings': a.onSettings != null,
+        'about': a.onAbout != null,
       };
 
   static bool _mapEquals(Map<String, bool> a, Map<String, bool>? b) {

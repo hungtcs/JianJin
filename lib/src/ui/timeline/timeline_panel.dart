@@ -28,6 +28,7 @@ class TimelinePanel extends StatefulWidget {
     required this.waveform,
     required this.thumbnails,
     required this.cache,
+    this.bands = const TimelineBands(),
     this.thumbnailsLoading = false,
     this.waveformLoading = false,
     required this.onScrubStart,
@@ -46,6 +47,7 @@ class TimelinePanel extends StatefulWidget {
   final List<double> waveform;
   final List<String> thumbnails;
   final ThumbnailCache cache;
+  final TimelineBands bands;
   final bool thumbnailsLoading;
   final bool waveformLoading;
 
@@ -94,7 +96,7 @@ class _TimelinePanelState extends State<TimelinePanel> {
       mainAxisSize: MainAxisSize.min,
       children: [
         SizedBox(
-          height: AppMetrics.detailHeight,
+          height: widget.bands.totalHeight,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -108,6 +110,7 @@ class _TimelinePanelState extends State<TimelinePanel> {
                   waveform: widget.waveform,
                   thumbnails: widget.thumbnails,
                   cache: widget.cache,
+                  bands: widget.bands,
                   thumbnailsLoading: widget.thumbnailsLoading,
                   waveformLoading: widget.waveformLoading,
                   selectedId: widget.selectedId,

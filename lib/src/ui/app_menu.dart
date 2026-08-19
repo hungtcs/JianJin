@@ -8,6 +8,7 @@ class AppMenuActions {
   const AppMenuActions({
     required this.onOpen,
     this.onAbout,
+    this.onSettings,
     this.onCloseFile,
     this.onExport,
     this.onUndo,
@@ -28,6 +29,7 @@ class AppMenuActions {
 
   final VoidCallback onOpen;
   final VoidCallback? onAbout;
+  final VoidCallback? onSettings;
   final VoidCallback? onCloseFile;
   final VoidCallback? onExport;
 

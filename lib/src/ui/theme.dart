@@ -40,7 +40,6 @@ class AppMetrics {
   static const titleBarHeight = 34.0;
   static const transportHeight = 44.0;
   static const overviewHeight = 34.0;
-  static const detailHeight = 96.0;
   static const sidebarWidth = 232.0;
 
   static const radius = 5.0;

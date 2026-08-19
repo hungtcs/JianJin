@@ -14,11 +14,14 @@ import '../services/ffmpeg_locator.dart';
 import '../services/reveal.dart';
 import '../state/app_state.dart';
 import 'about_dialog.dart';
+import '../settings.dart';
 import 'app_menu.dart';
 import 'native_menu_bridge.dart';
 import 'confirm_overwrite.dart';
 import 'segment_list.dart';
+import 'settings_panel.dart';
 import 'theme.dart';
+import 'timeline/detail_timeline.dart';
 import 'timeline/thumbnail_cache.dart';
 import 'timeline/timeline_panel.dart';
 import 'transport_bar.dart';
@@ -28,14 +31,16 @@ import 'widgets/button.dart';
 import 'widgets/icons.dart' as ic;
 
 class AppShell extends StatefulWidget {
-  const AppShell({super.key});
+  const AppShell({super.key, required this.settings});
+
+  final AppSettings settings;
 
   @override
   State<AppShell> createState() => _AppShellState();
 }
 
 class _AppShellState extends State<AppShell> {
-  final _state = AppState();
+  late final AppState _state = AppState(settings: widget.settings);
   final _player = PlayerController();
   final _cache = ThumbnailCache();
   final _focus = FocusNode();
@@ -50,12 +55,14 @@ class _AppShellState extends State<AppShell> {
   _OverwritePrompt? _overwritePrompt;
 
   bool _aboutOpen = false;
+  bool _settingsOpen = false;
   String? _ffmpegVersion;
   String? _version;
 
   @override
   void initState() {
     super.initState();
+    widget.settings.addListener(_onChanged);
     _state.addListener(_onChanged);
     _player.addListener(_onChanged);
     _probeFfmpeg();
@@ -76,7 +83,6 @@ class _AppShellState extends State<AppShell> {
       final info = await PackageInfo.fromPlatform();
       if (!mounted) return;
       setState(() => _version = info.version);
-      NativeMenuBridge.instance.setAbout(version: info.version);
     } catch (_) {
       // 读不到就不显示版本，不影响其它功能
     }
@@ -89,6 +95,7 @@ class _AppShellState extends State<AppShell> {
   @override
   void dispose() {
     _toastTimer?.cancel();
+    widget.settings.removeListener(_onChanged);
     _state.removeListener(_onChanged);
     _player.removeListener(_onChanged);
     _state.dispose();
@@ -279,6 +286,10 @@ class _AppShellState extends State<AppShell> {
         _export();
         return KeyEventResult.handled;
       }
+      if (k == LogicalKeyboardKey.comma) {
+        setState(() => _settingsOpen = true);
+        return KeyEventResult.handled;
+      }
       return KeyEventResult.ignored;
     }
 
@@ -323,6 +334,8 @@ class _AppShellState extends State<AppShell> {
     if (k == LogicalKeyboardKey.escape) {
       if (_overwritePrompt != null) {
         _resolveOverwrite(null);
+      } else if (_settingsOpen) {
+        setState(() => _settingsOpen = false);
       } else if (_aboutOpen) {
         setState(() => _aboutOpen = false);
       } else {
@@ -444,6 +457,11 @@ class _AppShellState extends State<AppShell> {
                       ],
                     ),
                   ),
+                  ResizeHandle(
+                    // 向上拖（dy 为负）应当让时间轴变高
+                    onDelta: (dy) => widget.settings.timelineHeight =
+                        widget.settings.timelineHeight - dy,
+                  ),
                   TransportBar(
                     player: _player,
                     segmentCount: _state.segments.length,
@@ -470,6 +488,11 @@ class _AppShellState extends State<AppShell> {
                     waveform: _state.waveform,
                     thumbnails: _state.thumbnails,
                     cache: _cache,
+                    bands: TimelineBands(
+                      thumbnails: widget.settings.thumbnailsEnabled,
+                      waveform: widget.settings.waveformEnabled,
+                      height: widget.settings.timelineHeight,
+                    ),
                     thumbnailsLoading: _state.thumbnailsLoading,
                     waveformLoading: _state.waveformLoading,
                     selectedId: _state.selectedId,
@@ -492,6 +515,13 @@ class _AppShellState extends State<AppShell> {
                   outputDir: _overwritePrompt!.outputDir,
                   onChoose: _resolveOverwrite,
                   onCancel: () => _resolveOverwrite(null),
+                ),
+              ),
+            if (_settingsOpen)
+              Positioned.fill(
+                child: SettingsPanel(
+                  settings: widget.settings,
+                  onClose: () => setState(() => _settingsOpen = false),
                 ),
               ),
             if (_aboutOpen)

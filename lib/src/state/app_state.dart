@@ -9,15 +9,22 @@ import '../models/segment.dart';
 import '../models/video_info.dart';
 import '../services/ffmpeg_service.dart';
 import '../services/ffprobe_service.dart';
+import '../settings.dart';
 
 enum LoadPhase { idle, probing, ready, failed }
 
 class AppState extends ChangeNotifier {
   AppState({
+    required AppSettings settings,
     FfprobeService? probe,
     FfmpegService? ffmpeg,
-  })  : _probe = probe ?? const FfprobeService(),
-        _ffmpeg = ffmpeg ?? const FfmpegService();
+  })  : _settings = settings,
+        _probe = probe ?? const FfprobeService(),
+        _ffmpeg = ffmpeg ?? const FfmpegService() {
+    _mode = settings.exportMode;
+  }
+
+  final AppSettings _settings;
 
   final FfprobeService _probe;
   final FfmpegService _ffmpeg;
@@ -67,7 +74,7 @@ class AppState extends ChangeNotifier {
   bool get analyzing =>
       _keyframesLoading || _thumbnailsLoading || _waveformLoading;
 
-  ExportMode _mode = ExportMode.lossless;
+  late ExportMode _mode;
   ExportMode get mode => _mode;
   set mode(ExportMode m) {
     if (_mode == m) return;
@@ -145,11 +152,19 @@ class AppState extends ChangeNotifier {
   /// 波形其次（实测约 0.1 秒，几乎免费）；
   /// 缩略图最后，且要用关键帧数量来决定抽稀步长。
   Future<void> _runAnalysis(String path) async {
+    // 关键帧总是要扫：无损切割的正确性依赖它，而且只读容器索引不解码。
     await _loadKeyframes(path);
     if (_info?.path != path) return;
-    await _loadWaveform(path);
-    if (_info?.path != path) return;
-    await _loadThumbnails();
+
+    // 波形与缩略图可以在设置里关掉。关掉就完全不起 ffmpeg 进程，
+    // 而不只是不显示——它们正是打开大文件时的主要开销。
+    if (_settings.waveformEnabled) {
+      await _loadWaveform(path);
+      if (_info?.path != path) return;
+    }
+    if (_settings.thumbnailsEnabled) {
+      await _loadThumbnails();
+    }
   }
 
   Future<void> _loadKeyframes(String path) async {
@@ -197,6 +212,7 @@ class AppState extends ChangeNotifier {
       info: info,
       cacheDir: dir,
       keyframeCount: info.keyframes.length,
+      count: _settings.thumbnailCount,
     );
     if (_info?.path != info.path) return;
     _thumbnails = files;

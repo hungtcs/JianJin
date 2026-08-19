@@ -10,21 +10,74 @@ import '../theme.dart';
 import 'thumbnail_cache.dart';
 import 'timeline_view_controller.dart';
 
-/// 细节轨的分带高度。**state 的命中测试与 painter 的绘制必须共用这一份**——
+/// 细节轨的分带布局。**state 的命中测试与 painter 的绘制必须共用这一份**——
 /// 曾经命中测试只看横坐标，导致刻度尺区域虽然没画片段却能拖动片段。
+///
+/// 缩略图与波形可以在设置里关掉。关掉时对应的带子**整条消失**、轨道随之变矮，
+/// 而不是留一条空白灰带——空带既占地方又让人以为是加载失败。
 class TimelineBands {
-  const TimelineBands._();
+  const TimelineBands({
+    this.thumbnails = true,
+    this.waveform = true,
+    this.height = defaultHeight,
+  });
+
+  final bool thumbnails;
+  final bool waveform;
+
+  /// 用户拖拽分隔条设定的总高度（含刻度尺）
+  final double height;
 
   /// 刻度尺 + 关键帧刻度；此带只做 scrub，不参与片段交互
   static const ruler = 18.0;
-  static const thumbTop = 18.0;
-  static const thumbH = 46.0;
-  static const waveTop = 64.0;
+
+  /// 缩略图是图片，拉伸没有意义，固定高度
+  static const thumbHeight = 46.0;
+
+  static const minWave = 22.0;
+  static const minBody = 30.0;
+  static const defaultHeight = 96.0;
+  static const minHeight = ruler + minBody;
+  static const maxHeight = 420.0;
+
+  double get _thumbs => thumbnails ? thumbHeight : 0;
+
+  double get thumbTop => ruler;
+  double get waveTop => ruler + _thumbs;
+
+  /// 波形吃掉拖拽多出来的全部空间。刻度尺与缩略图都是固定高度，
+  /// 只有波形从更高的轨道里真正获益——原来固定 32px 时它细得像条线。
+  double get waveHeight {
+    if (!waveform) return 0;
+    final rest = height - ruler - _thumbs;
+    return rest < minWave ? minWave : rest;
+  }
+
+  double get totalHeight {
+    final h = ruler + _thumbs + waveHeight;
+    return h < minHeight ? minHeight : h;
+  }
+
+  TimelineBands copyWith({double? height}) => TimelineBands(
+        thumbnails: thumbnails,
+        waveform: waveform,
+        height: height ?? this.height,
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      other is TimelineBands &&
+      other.thumbnails == thumbnails &&
+      other.waveform == waveform &&
+      other.height == height;
+
+  @override
+  int get hashCode => Object.hash(thumbnails, waveform, height);
 }
 
 /// 细节时间轴：可缩放，画缩略图、波形、关键帧刻度、片段。
 ///
-/// 分带布局（总高 [AppMetrics.detailHeight]）：
+/// 分带布局见 [TimelineBands]：
 ///   0..18   刻度尺 + 关键帧刻度
 ///   18..64  缩略图条
 ///   64..96  波形
@@ -38,6 +91,7 @@ class DetailTimeline extends StatefulWidget {
     required this.waveform,
     required this.thumbnails,
     required this.cache,
+    this.bands = const TimelineBands(),
     this.thumbnailsLoading = false,
     this.waveformLoading = false,
     required this.onScrubStart,
@@ -56,6 +110,7 @@ class DetailTimeline extends StatefulWidget {
   final List<double> waveform;
   final List<String> thumbnails;
   final ThumbnailCache cache;
+  final TimelineBands bands;
   final bool thumbnailsLoading;
   final bool waveformLoading;
 
@@ -297,7 +352,7 @@ class _DetailTimelineState extends State<DetailTimeline> {
             onPointerUp: _onUp,
             child: ClipRect(
               child: CustomPaint(
-                size: Size(c.maxWidth, AppMetrics.detailHeight),
+                size: Size(c.maxWidth, widget.bands.totalHeight),
                 painter: _DetailPainter(
                   view: _v,
                   position: widget.position,
@@ -306,6 +361,7 @@ class _DetailTimelineState extends State<DetailTimeline> {
                   waveform: widget.waveform,
                   thumbnails: widget.thumbnails,
                   cache: widget.cache,
+                  bands: widget.bands,
                   thumbnailsLoading: widget.thumbnailsLoading,
                   waveformLoading: widget.waveformLoading,
                   selectedId: widget.selectedId,
@@ -330,6 +386,7 @@ class _DetailPainter extends CustomPainter {
     required this.waveform,
     required this.thumbnails,
     required this.cache,
+    required this.bands,
     required this.thumbnailsLoading,
     required this.waveformLoading,
     required this.selectedId,
@@ -344,15 +401,17 @@ class _DetailPainter extends CustomPainter {
   final List<double> waveform;
   final List<String> thumbnails;
   final ThumbnailCache cache;
+  final TimelineBands bands;
   final bool thumbnailsLoading;
   final bool waveformLoading;
   final String? selectedId;
   final Duration? pendingIn;
 
   static const _rulerH = TimelineBands.ruler;
-  static const _thumbTop = TimelineBands.thumbTop;
-  static const _thumbH = TimelineBands.thumbH;
-  static const _waveTop = TimelineBands.waveTop;
+  double get _thumbTop => bands.thumbTop;
+  double get _thumbH => TimelineBands.thumbHeight;
+  double get _waveH => bands.waveHeight;
+  double get _waveTop => bands.waveTop;
 
   double get _viewStartMs => view.viewStartMs;
   double get _pxPerMs => view.pxPerMs;
@@ -368,8 +427,8 @@ class _DetailPainter extends CustomPainter {
 
     canvas.drawRect(Offset.zero & size, Paint()..color = AppColors.bg);
 
-    _paintThumbnails(canvas, w);
-    _paintWaveform(canvas, w, h);
+    if (bands.thumbnails) _paintThumbnails(canvas, w);
+    if (bands.waveform) _paintWaveform(canvas, w, h);
     _paintRuler(canvas, w, viewEndMs);
     _paintKeyframes(canvas, viewEndMs);
     _paintSegments(canvas, w, h);
@@ -432,7 +491,7 @@ class _DetailPainter extends CustomPainter {
       final x = _x(i * perThumbMs);
       final drawW = math.max(thumbW * stride, 1.0);
       final aspect = img.width / img.height;
-      const dh = _thumbH;
+      final dh = _thumbH;
       final dw = dh * aspect;
 
       canvas.save();
@@ -449,7 +508,7 @@ class _DetailPainter extends CustomPainter {
   }
 
   void _paintWaveform(Canvas canvas, double w, double h) {
-    final waveH = h - _waveTop;
+    final waveH = _waveH;
     canvas.drawRect(
       Rect.fromLTWH(0, _waveTop, w, waveH),
       Paint()..color = AppColors.panel,
@@ -663,6 +722,7 @@ class _DetailPainter extends CustomPainter {
       old.keyframes != keyframes ||
       old.waveform != waveform ||
       old.thumbnails != thumbnails ||
+      old.bands != bands ||
       old.thumbnailsLoading != thumbnailsLoading ||
       old.waveformLoading != waveformLoading ||
       old.selectedId != selectedId ||
