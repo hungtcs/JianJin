@@ -22,6 +22,7 @@ class AppState extends ChangeNotifier {
         _probe = probe ?? const FfprobeService(),
         _ffmpeg = ffmpeg ?? const FfmpegService() {
     _mode = settings.exportMode;
+    _settings.addListener(_onSettingsChanged);
   }
 
   final AppSettings _settings;
@@ -63,6 +64,11 @@ class AppState extends ChangeNotifier {
 
   bool _keyframesLoading = false;
   bool get keyframesLoading => _keyframesLoading;
+
+  /// 已经为哪个文件尝试过分析。用路径而非布尔值，是为了在换文件后自动失效；
+  /// 同时避免「没有音轨」这类必然为空的情形被反复重试。
+  String? _waveformTriedFor;
+  String? _thumbnailsTriedFor;
 
   bool _thumbnailsLoading = false;
   bool get thumbnailsLoading => _thumbnailsLoading;
@@ -129,6 +135,8 @@ class AppState extends ChangeNotifier {
     _thumbnailsLoading = false;
     _waveformLoading = false;
     _keyframesLoading = false;
+    _waveformTriedFor = null;
+    _thumbnailsTriedFor = null;
     notifyListeners();
 
     try {
@@ -151,6 +159,28 @@ class AppState extends ChangeNotifier {
   /// 关键帧最先（切割正确性依赖它，且只读容器索引不解码）；
   /// 波形其次（实测约 0.1 秒，几乎免费）；
   /// 缩略图最后，且要用关键帧数量来决定抽稀步长。
+  /// 设置变化时补算缺失的分析。
+  ///
+  /// 分析只在打开文件时跑一次，若那时对应开关是关的就完全没有数据；
+  /// 之后在设置里打开只会显示一条空带。这里按需补上。
+  void _onSettingsChanged() {
+    final info = _info;
+    if (info == null) return;
+
+    if (_settings.waveformEnabled &&
+        _waveform.isEmpty &&
+        !_waveformLoading &&
+        _waveformTriedFor != info.path) {
+      _loadWaveform(info.path);
+    }
+    if (_settings.thumbnailsEnabled &&
+        _thumbnails.isEmpty &&
+        !_thumbnailsLoading &&
+        _thumbnailsTriedFor != info.path) {
+      _loadThumbnails();
+    }
+  }
+
   Future<void> _runAnalysis(String path) async {
     // 关键帧总是要扫：无损切割的正确性依赖它，而且只读容器索引不解码。
     await _loadKeyframes(path);
@@ -188,6 +218,7 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> _loadWaveform(String path) async {
+    _waveformTriedFor = path;
     _waveformLoading = true;
     notifyListeners();
     final w = await _ffmpeg.waveform(path);
@@ -200,6 +231,7 @@ class AppState extends ChangeNotifier {
   Future<void> _loadThumbnails() async {
     final info = _info;
     if (info == null) return;
+    _thumbnailsTriedFor = info.path;
     _thumbnailsLoading = true;
     notifyListeners();
 
@@ -396,6 +428,7 @@ class AppState extends ChangeNotifier {
 
   @override
   void dispose() {
+    _settings.removeListener(_onSettingsChanged);
     _kfSub?.cancel();
     super.dispose();
   }
