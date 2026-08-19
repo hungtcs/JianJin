@@ -529,6 +529,7 @@ class _DetailPainter extends CustomPainter {
       final i = ((ms / totalMs) * waveform.length)
           .floor()
           .clamp(0, waveform.length - 1);
+      // 0.46 是相对半高的占比，留一点上下边距避免贴边
       final amp = waveform[i] * (waveH * 0.46);
       if (amp < 0.4) continue;
       canvas.drawLine(

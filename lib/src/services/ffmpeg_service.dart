@@ -283,6 +283,22 @@ class FfmpegService {
       }
       out[i] = peak / 32768.0;
     }
+
+    // 按素材自身峰值归一化。绝对电平（相对满刻度 32768）对显示没有意义：
+    // 多数素材的峰值远低于满刻度，直接画出来只占轨道很小一部分，
+    // 把轨道拉高也看不出细节。
+    //
+    // 但接近静音的音轨不做放大，否则底噪会被拉成满幅波形，
+    // 让人误以为那里有内容——而「一眼看出静音段」正是波形的主要用途。
+    var loudest = 0.0;
+    for (final v in out) {
+      if (v > loudest) loudest = v;
+    }
+    if (loudest > 0.02) {
+      for (var i = 0; i < out.length; i++) {
+        out[i] = out[i] / loudest;
+      }
+    }
     return out;
   }
 

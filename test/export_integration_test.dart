@@ -181,5 +181,9 @@ void main() {
     expect(w.every((v) => v >= 0 && v <= 1), isTrue);
     // 素材是持续正弦波，应当整体有声而非静音
     expect(w.where((v) => v > 0.1).length, greaterThan(150));
+
+    // 按自身峰值归一化后，最响处应当接近满幅——否则波形在轨道里
+    // 只占很小一条，把轨道拉高也看不出细节
+    expect(w.reduce((a, b) => a > b ? a : b), closeTo(1.0, 0.01));
   });
 }
