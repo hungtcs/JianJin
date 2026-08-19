@@ -10,6 +10,7 @@ class TransportBar extends StatelessWidget {
   const TransportBar({
     super.key,
     required this.player,
+    required this.onToggleMute,
     required this.segmentCount,
     required this.totalKept,
     required this.canUndo,
@@ -27,6 +28,7 @@ class TransportBar extends StatelessWidget {
   });
 
   final PlayerController player;
+  final VoidCallback onToggleMute;
   final int segmentCount;
   final Duration totalKept;
   final bool canUndo;
@@ -68,6 +70,12 @@ class TransportBar extends StatelessWidget {
             icon: player.playing ? ic.AppIcon.pause : ic.AppIcon.play,
             onPressed: hasVideo ? player.playPause : null,
             size: 30,
+            iconSize: 14,
+          ),
+          AppIconButton(
+            icon: player.muted ? ic.AppIcon.volumeMuted : ic.AppIcon.volume,
+            onPressed: hasVideo ? onToggleMute : null,
+            size: 28,
             iconSize: 14,
           ),
           const SizedBox(width: AppMetrics.gap),
@@ -193,7 +201,6 @@ class _ProgressBar extends StatelessWidget {
   }
 }
 
-
 /// 导出模式切换。放在导出按钮旁边，因为它直接决定产物时长准不准。
 class _ModeToggle extends StatelessWidget {
   const _ModeToggle({required this.mode, required this.onChanged});
@@ -265,11 +272,9 @@ class _ModeChipState extends State<_ModeChip> {
             widget.label,
             style: AppText.label.copyWith(
               fontSize: 11,
-              color: widget.active
-                  ? const Color(0xFF0B1220)
-                  : AppColors.textDim,
-              fontWeight:
-                  widget.active ? FontWeight.w600 : FontWeight.w400,
+              color:
+                  widget.active ? const Color(0xFF0B1220) : AppColors.textDim,
+              fontWeight: widget.active ? FontWeight.w600 : FontWeight.w400,
             ),
           ),
         ),

@@ -31,9 +31,15 @@ class PlayerController extends ChangeNotifier {
   /// 就不该再被一个看不见的终点打断。
   Duration? _stopAt;
 
+  /// 静音前的音量，取消静音时恢复到这个值而不是固定的 100，
+  /// 否则用户自己调过的音量会被抹掉
+  double _volumeBeforeMute = 100;
+  bool _muted = false;
+
   Duration get position => _position;
   Duration get duration => _duration;
   bool get playing => _playing;
+  bool get muted => _muted;
   double get rate => _rate;
 
   void _bind() {
@@ -90,6 +96,19 @@ class PlayerController extends ChangeNotifier {
     _playing = false;
     _rate = 1.0;
     notifyListeners();
+  }
+
+  Future<void> toggleMute() async {
+    if (_muted) {
+      _muted = false;
+      notifyListeners();
+      await _player.setVolume(_volumeBeforeMute);
+    } else {
+      _volumeBeforeMute = _player.state.volume;
+      _muted = true;
+      notifyListeners();
+      await _player.setVolume(0);
+    }
   }
 
   Future<void> playPause() {

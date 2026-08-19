@@ -16,6 +16,8 @@ enum AppIcon {
   chevronLeft,
   chevronRight,
   menu,
+  volume,
+  volumeMuted,
 }
 
 class Icon extends StatelessWidget {
@@ -105,6 +107,43 @@ class _IconPainter extends CustomPainter {
           ..lineTo(w * 0.58, h * 0.78)
           ..close();
         canvas.drawPath(tri, fill);
+
+      case AppIcon.volume:
+      case AppIcon.volumeMuted:
+        // 喇叭本体：左侧方块 + 向右张开的梯形
+        final horn = Path()
+          ..moveTo(w * 0.12, h * 0.38)
+          ..lineTo(w * 0.30, h * 0.38)
+          ..lineTo(w * 0.50, h * 0.20)
+          ..lineTo(w * 0.50, h * 0.80)
+          ..lineTo(w * 0.30, h * 0.62)
+          ..lineTo(w * 0.12, h * 0.62)
+          ..close();
+        canvas.drawPath(horn, fill);
+        if (icon == AppIcon.volume) {
+          // 两道声波
+          for (final r in <double>[0.16, 0.28]) {
+            canvas.drawArc(
+              Rect.fromCircle(center: Offset(w * 0.50, h * 0.5), radius: w * r),
+              -math.pi / 3,
+              math.pi * 2 / 3,
+              false,
+              stroke,
+            );
+          }
+        } else {
+          // 静音：一个叉，比划掉声波更容易一眼看清
+          canvas.drawLine(
+            Offset(w * 0.62, h * 0.36),
+            Offset(w * 0.88, h * 0.64),
+            stroke,
+          );
+          canvas.drawLine(
+            Offset(w * 0.88, h * 0.36),
+            Offset(w * 0.62, h * 0.64),
+            stroke,
+          );
+        }
 
       case AppIcon.delete:
         canvas.drawLine(
