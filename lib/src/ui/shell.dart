@@ -402,7 +402,7 @@ class _AppShellState extends State<AppShell> {
       onCancelPending: _state.pendingIn != null ? _state.cancelPending : null,
     );
 
-    NativeMenuBridge.instance.sync(menuActions);
+    NativeMenuBridge.instance.setActions(menuActions);
 
     return AppMenu(
       actions: menuActions,
@@ -593,15 +593,9 @@ class _TitleBar extends StatelessWidget {
                   style: AppText.label),
           ],
           const Spacer(),
-          // macOS 有原生 NSMenu；Linux 在 GNOME 下有标题栏原生菜单。
-          // 只有确实没有原生入口时才显示窗口内的汉堡按钮。
-          if (!Platform.isMacOS)
-            ValueListenableBuilder<bool>(
-              valueListenable: NativeMenuBridge.instance.hasNativeMenu,
-              builder: (context, hasNative, _) => hasNative
-                  ? const SizedBox.shrink()
-                  : WindowMenuButton(actions: menuActions),
-            ),
+          // macOS 用原生 NSMenu，Linux 用标题栏上的原生 GTK 菜单，
+          // 只有 Windows 需要窗口内的汉堡按钮
+          if (Platform.isWindows) WindowMenuButton(actions: menuActions),
         ],
       ),
     );

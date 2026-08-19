@@ -1,15 +1,16 @@
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import 'app_menu.dart';
 
-/// 与 Linux 原生 GTK 菜单之间的桥。
+/// 与 Linux 原生 GTK 菜单之间的桥。**只有 C → Dart 一个方向**：
+/// 菜单项被点击时把动作名发过来执行。
 ///
-/// C 侧在标题栏放了 GNOME 规范的「主菜单」（汉堡 + popover），菜单项被点击时
-/// 通过本通道把动作名发过来执行；反过来，Dart 侧的可用状态变化时把整张
-/// 启用表推回去，让菜单项该灰的灰。
+/// 刻意不做反向的启用状态同步。那需要两侧维护一致的启用表，而 Dart 首帧的
+/// 推送可能早于 C 侧注册处理器而被丢弃，菜单会因此永久变灰——曾经就是这样。
+/// 现在菜单项一律可用，不适用的动作在 Dart 侧自然是空操作；若点击时 Flutter
+/// 尚未就绪，这一次没反应，再点一次即可。
 ///
 /// **动作名必须与 `linux/runner/my_application.cc` 中的 `kMenuActions` 完全一致**，
 /// 这是两侧唯一的契约，改一边必须改另一边。
@@ -20,53 +21,27 @@ class NativeMenuBridge {
 
   static const _channel = MethodChannel('jianjin/menu');
 
-  /// 只有 Linux 有原生菜单；其余平台由各自方式提供（macOS 原生 NSMenu、
-  /// Windows 窗口内菜单），不必建立通道。
+  /// 只有 Linux 走原生菜单；macOS 用 NSMenu，Windows 用窗口内菜单。
   static bool get isSupported => Platform.isLinux;
 
-  /// 原生菜单是否已就位。C 侧在标题栏挂上汉堡按钮后会通知过来；
-  /// 在收到通知前保守地按「没有」处理，宁可短暂多显示一个按钮，
-  /// 也不要出现一个菜单入口都没有的窗口。
-  final ValueNotifier<bool> hasNativeMenu = ValueNotifier<bool>(false);
-
   AppMenuActions? _actions;
-  Map<String, bool>? _lastEnabled;
   bool _installed = false;
 
-  /// 把当前动作集同步给原生菜单。可安全地在每次 build 调用——
-  /// 启用表没变化时不会产生通道往返。
-  void sync(AppMenuActions actions) {
+  /// 更新可供菜单调用的动作集。每次 build 调用即可，开销只是一次赋值。
+  void setActions(AppMenuActions actions) {
     if (!isSupported) return;
     _actions = actions;
-
-    if (!_installed) {
-      _channel.setMethodCallHandler(_onNativeCall);
-      _installed = true;
-    }
-
-    final enabled = _enabledMap(actions);
-    if (_mapEquals(enabled, _lastEnabled)) return;
-    _lastEnabled = enabled;
-    _channel.invokeMethod<void>('setEnabled', enabled);
+    if (_installed) return;
+    _installed = true;
+    _channel.setMethodCallHandler(_onNativeCall);
   }
 
   Future<dynamic> _onNativeCall(MethodCall call) async {
-    if (call.method == 'nativeMenu') {
-      hasNativeMenu.value = call.arguments as bool? ?? false;
-
-      // C 侧要到此刻才注册好通道处理器，而 Dart 的首帧可能早于此——
-      // 那一次 setEnabled 会因无人接收被直接丢弃。若不清掉缓存重推，
-      // sync 会认为「已经推过了」，菜单便永远停在禁用态。
-      _lastEnabled = null;
-      final actions = _actions;
-      if (actions != null) sync(actions);
-      return null;
-    }
     if (call.method != 'activate') return null;
     final id = call.arguments as String?;
-    final a = _actions;
-    if (id == null || a == null) return null;
-    _dispatch(a, id)?.call();
+    final actions = _actions;
+    if (id == null || actions == null) return null;
+    _dispatch(actions, id)?.call();
     return null;
   }
 
@@ -91,34 +66,4 @@ class NativeMenuBridge {
         'about' => a.onAbout,
         _ => null,
       };
-
-  Map<String, bool> _enabledMap(AppMenuActions a) => <String, bool>{
-        'open': true,
-        'close': a.onCloseFile != null,
-        'export': a.onExport != null,
-        'undo': a.onUndo != null,
-        'delete': a.onDeleteSelected != null,
-        'clearAll': a.onClearAll != null,
-        'markIn': a.onMarkIn != null,
-        'markOut': a.onMarkOut != null,
-        'playPause': a.onPlayPause != null,
-        'faster': a.onFaster != null,
-        'slower': a.onSlower != null,
-        'resetRate': a.onResetRate != null,
-        'back5': a.onBack5 != null,
-        'forward5': a.onForward5 != null,
-        'prevFrame': a.onPrevFrame != null,
-        'nextFrame': a.onNextFrame != null,
-        // 设置与关于不依赖是否打开了视频，始终可用
-        'settings': a.onSettings != null,
-        'about': a.onAbout != null,
-      };
-
-  static bool _mapEquals(Map<String, bool> a, Map<String, bool>? b) {
-    if (b == null || a.length != b.length) return false;
-    for (final e in a.entries) {
-      if (b[e.key] != e.value) return false;
-    }
-    return true;
-  }
 }

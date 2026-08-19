@@ -11,15 +11,9 @@ struct _MyApplication {
   GtkApplication parent_instance;
   char** dart_entrypoint_arguments;
 
-  // 与 Dart 侧通信的方法通道。菜单项被点击时把动作名发过去执行，
-  // Dart 侧的可用状态变化时回推过来更新菜单项的启用/禁用。
+  // 单向通道：菜单项被点击时把动作名发给 Dart 执行
   FlMethodChannel* menu_channel;
   GtkWindow* window;
-
-  // 标题栏里是否真的挂上了原生菜单。传统标题栏（非 GNOME 的 X11 会话）
-  // 放不下 popover 按钮，此时要让 Dart 侧退回窗口内菜单，
-  // 否则那些桌面上会完全没有菜单入口。
-  gboolean has_native_menu;
 };
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
@@ -29,12 +23,6 @@ G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 static const char* kMenuActions[] = {"open",     "close", "export", "undo",
                                      "clearAll", "settings", "about", nullptr};
 
-// 这些动作与是否打开了视频无关，永远可用。单独列出来是为了不参与
-// 「默认禁用、等 Dart 推送真实状态」的流程——万一那次推送没送到，
-// 设置与关于仍然点得开。
-static bool action_always_enabled(const char* name) {
-  return g_strcmp0(name, "settings") == 0 || g_strcmp0(name, "about") == 0;
-}
 
 // 菜单项被激活：把动作名发给 Dart 执行。
 static void menu_action_cb(GSimpleAction* action, GVariant* parameter,
@@ -47,35 +35,6 @@ static void menu_action_cb(GSimpleAction* action, GVariant* parameter,
       fl_value_new_string(g_action_get_name(G_ACTION(action)));
   fl_method_channel_invoke_method(self->menu_channel, "activate", args, nullptr,
                                   nullptr, nullptr);
-}
-
-// Dart 侧推送过来的状态：菜单项可用性、关于对话框的信息。
-static void menu_method_call_cb(FlMethodChannel* channel,
-                                FlMethodCall* method_call, gpointer user_data) {
-  MyApplication* self = MY_APPLICATION(user_data);
-  const gchar* method = fl_method_call_get_name(method_call);
-  FlValue* args = fl_method_call_get_args(method_call);
-
-  if (g_strcmp0(method, "setEnabled") == 0 && args != nullptr &&
-      fl_value_get_type(args) == FL_VALUE_TYPE_MAP &&
-      self->window != nullptr) {
-    for (int i = 0; kMenuActions[i] != nullptr; i++) {
-      FlValue* value = fl_value_lookup_string(args, kMenuActions[i]);
-      if (value == nullptr || fl_value_get_type(value) != FL_VALUE_TYPE_BOOL) {
-        continue;
-      }
-      GAction* action =
-          g_action_map_lookup_action(G_ACTION_MAP(self->window),
-                                     kMenuActions[i]);
-      if (action != nullptr) {
-        g_simple_action_set_enabled(G_SIMPLE_ACTION(action),
-                                    fl_value_get_bool(value));
-      }
-    }
-  }
-
-  g_autoptr(FlValue) result = fl_value_new_null();
-  fl_method_call_respond_success(method_call, result, nullptr);
 }
 
 // 构建「主菜单」：标题栏左侧的汉堡按钮 + popover。
@@ -142,14 +101,10 @@ static GtkWidget* build_primary_menu_button(MyApplication* self) {
 static void install_menu_actions(MyApplication* self, GtkWindow* window) {
   for (int i = 0; kMenuActions[i] != nullptr; i++) {
     GSimpleAction* action = g_simple_action_new(kMenuActions[i], nullptr);
-    // 其余动作默认禁用，等 Dart 侧推送真实状态；反过来（默认可用）
-    // 会在启动瞬间露出一批点了没反应的菜单项。
-    g_simple_action_set_enabled(action, action_always_enabled(kMenuActions[i]));
     g_signal_connect(action, "activate", G_CALLBACK(menu_action_cb), self);
     g_action_map_add_action(G_ACTION_MAP(window), G_ACTION(action));
     g_object_unref(action);
   }
-
 }
 
 // Called when first Flutter frame received.
@@ -217,7 +172,6 @@ static void my_application_activate(GApplication* application) {
     gtk_header_bar_set_show_close_button(header_bar, TRUE);
     // 汉堡按钮放标题栏左端
     gtk_header_bar_pack_start(header_bar, build_primary_menu_button(self));
-    self->has_native_menu = TRUE;
     gtk_window_set_titlebar(window, GTK_WIDGET(header_bar));
   } else {
     // 传统标题栏放不下 popover 按钮，退而在窗口顶部加一条菜单栏，
@@ -255,13 +209,9 @@ static void my_application_activate(GApplication* application) {
   self->menu_channel = fl_method_channel_new(
       fl_engine_get_binary_messenger(fl_view_get_engine(view)),
       "jianjin/menu", FL_METHOD_CODEC(codec));
-  fl_method_channel_set_method_call_handler(self->menu_channel,
-                                            menu_method_call_cb, self, nullptr);
-
-  // 告知 Dart 侧原生菜单是否可用，决定要不要显示窗口内的汉堡按钮
-  g_autoptr(FlValue) has_menu = fl_value_new_bool(self->has_native_menu);
-  fl_method_channel_invoke_method(self->menu_channel, "nativeMenu", has_menu,
-                                  nullptr, nullptr, nullptr);
+  // 通道只用于 C → Dart 单向发送动作名。不做反向的状态同步：
+  // 那需要在两侧维护一致的启用表，而首帧推送可能早于处理器注册被丢弃，
+  // 菜单会因此永久变灰。菜单项一律可用，不适用的动作在 Dart 侧自然无操作。
 
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }
