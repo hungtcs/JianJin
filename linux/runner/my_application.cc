@@ -42,6 +42,14 @@ static void set_window_icon(GtkWindow* window) {
 
 static void my_application_activate(GApplication* application) {
   MyApplication* self = MY_APPLICATION(application);
+
+  // 应用界面是固定深色的。GTK 的标题栏、窗口边框与阴影由系统主题绘制，
+  // 若跟随系统的浅色偏好，就会出现「浅色边框裹着深色内容」的撕裂感。
+  // 这里请求深色主题变体，让窗口装饰与内容一致。
+  // 注意：必须在创建窗口之前设置，之后再改不会影响已构造的装饰。
+  g_object_set(gtk_settings_get_default(), "gtk-application-prefer-dark-theme",
+               TRUE, nullptr);
+
   GtkWindow* window =
       GTK_WINDOW(gtk_application_window_new(GTK_APPLICATION(application)));
 
