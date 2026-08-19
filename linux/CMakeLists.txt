@@ -83,6 +83,23 @@ if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
   set(CMAKE_INSTALL_PREFIX "${BUILD_BUNDLE_DIR}" CACHE PATH "..." FORCE)
 endif()
 
+# 安全网：上面那个判断只在构建目录**首次** configure 时为真。
+# 一旦首次 configure 中途失败（例如缺少 mpv/gtk3 开发包），缓存里就会留下
+# CMake 的默认前缀 /usr/local，而该标志此后不再为真——覆盖块永远不会再执行，
+# 于是每次重建都试图往系统目录安装，报 Permission denied，且无法自愈。
+#
+# `flutter build linux` 会执行 `ninja install`，但那只是用来把可执行文件、
+# 插件 .so 和 flutter_assets 归拢成便携 bundle，**永远不该写到构建树之外**。
+# 因此这里无条件校正越界的前缀，让被污染的缓存自动恢复。
+string(FIND "${CMAKE_INSTALL_PREFIX}" "${PROJECT_BINARY_DIR}" _jianjin_prefix_pos)
+if(NOT _jianjin_prefix_pos EQUAL 0)
+  message(WARNING
+    "CMAKE_INSTALL_PREFIX (${CMAKE_INSTALL_PREFIX}) 不在构建树内，"
+    "已重置为 ${BUILD_BUNDLE_DIR}。这通常意味着此前有一次 configure 中途失败。")
+  set(CMAKE_INSTALL_PREFIX "${BUILD_BUNDLE_DIR}" CACHE PATH "Bundle output" FORCE)
+endif()
+unset(_jianjin_prefix_pos)
+
 # Start with a clean build bundle directory every time.
 install(CODE "
   file(REMOVE_RECURSE \"${BUILD_BUNDLE_DIR}/\")
