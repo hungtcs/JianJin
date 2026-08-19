@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 
 import '../theme.dart';
@@ -56,7 +58,8 @@ class _AppButtonState extends State<AppButton> {
           ? const Color(0x40FF5A5A)
           : (_hover ? const Color(0x26FF5A5A) : AppColors.panelAlt);
       fg = AppColors.danger;
-      border = _hover ? AppColors.danger.withValues(alpha: 0.5) : AppColors.border;
+      border =
+          _hover ? AppColors.danger.withValues(alpha: 0.5) : AppColors.border;
     } else {
       bg = _down
           ? const Color(0xFF303036)
@@ -66,9 +69,7 @@ class _AppButtonState extends State<AppButton> {
     }
 
     return MouseRegion(
-      cursor: enabled
-          ? SystemMouseCursors.click
-          : SystemMouseCursors.basic,
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
       onEnter: (_) => setState(() => _hover = true),
       onExit: (_) => setState(() {
         _hover = false;
@@ -99,7 +100,8 @@ class _AppButtonState extends State<AppButton> {
                 style: AppText.base.copyWith(
                   color: fg,
                   fontSize: 12.5,
-                  fontWeight: widget.primary ? FontWeight.w600 : FontWeight.w500,
+                  fontWeight:
+                      widget.primary ? FontWeight.w600 : FontWeight.w500,
                 ),
               ),
               if (widget.shortcut != null) ...[
@@ -144,31 +146,110 @@ class AppIconButton extends StatefulWidget {
 class _AppIconButtonState extends State<AppIconButton> {
   bool _hover = false;
 
+  // 图标按钮没有文字，不给提示就只能靠猜。Flutter 的 Tooltip 在 Material 里，
+  // 这里用 OverlayPortal 自行实现一个。
+  final _tip = OverlayPortalController();
+  final _link = LayerLink();
+  Timer? _tipTimer;
+
+  void _scheduleTip() {
+    if (widget.tooltip == null || widget.onPressed == null) return;
+    _tipTimer?.cancel();
+    // 延迟出现，避免鼠标划过一排按钮时提示乱闪
+    _tipTimer = Timer(const Duration(milliseconds: 450), () {
+      if (mounted && _hover) _tip.show();
+    });
+  }
+
+  void _hideTip() {
+    _tipTimer?.cancel();
+    if (_tip.isShowing) _tip.hide();
+  }
+
+  @override
+  void dispose() {
+    _tipTimer?.cancel();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     final enabled = widget.onPressed != null;
+
+    Widget button = Container(
+      width: widget.size,
+      height: widget.size,
+      decoration: BoxDecoration(
+        color: _hover && enabled ? AppColors.panelAlt : null,
+        borderRadius: BorderRadius.circular(AppMetrics.radius),
+      ),
+      child: Center(
+        child: ic.Icon(
+          widget.icon,
+          size: widget.iconSize,
+          color: enabled
+              ? (_hover ? AppColors.text : AppColors.textDim)
+              : AppColors.textFaint,
+        ),
+      ),
+    );
+
+    if (widget.tooltip != null) {
+      button = CompositedTransformTarget(
+        link: _link,
+        child: OverlayPortal(
+          controller: _tip,
+          overlayChildBuilder: (context) => CompositedTransformFollower(
+            link: _link,
+            targetAnchor: Alignment.topCenter,
+            followerAnchor: Alignment.bottomCenter,
+            offset: const Offset(0, -6),
+            child: _Tooltip(message: widget.tooltip!),
+          ),
+          child: button,
+        ),
+      );
+    }
+
     return MouseRegion(
       cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.basic,
-      onEnter: (_) => setState(() => _hover = true),
-      onExit: (_) => setState(() => _hover = false),
+      onEnter: (_) {
+        setState(() => _hover = true);
+        _scheduleTip();
+      },
+      onExit: (_) {
+        setState(() => _hover = false);
+        _hideTip();
+      },
       child: GestureDetector(
-        onTap: widget.onPressed,
-        child: Container(
-          width: widget.size,
-          height: widget.size,
-          decoration: BoxDecoration(
-            color: _hover && enabled ? AppColors.panelAlt : null,
-            borderRadius: BorderRadius.circular(AppMetrics.radius),
-          ),
-          child: Center(
-            child: ic.Icon(
-              widget.icon,
-              size: widget.iconSize,
-              color: enabled
-                  ? (_hover ? AppColors.text : AppColors.textDim)
-                  : AppColors.textFaint,
-            ),
-          ),
+        onTap: () {
+          _hideTip();
+          widget.onPressed?.call();
+        },
+        child: button,
+      ),
+    );
+  }
+}
+
+class _Tooltip extends StatelessWidget {
+  const _Tooltip({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+        decoration: BoxDecoration(
+          color: const Color(0xF20E0E10),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: AppColors.borderStrong),
+        ),
+        child: Text(
+          message,
+          style: AppText.label.copyWith(fontSize: 11, color: AppColors.text),
         ),
       ),
     );

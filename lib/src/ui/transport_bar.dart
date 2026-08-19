@@ -77,6 +77,7 @@ class TransportBar extends StatelessWidget {
             onPressed: hasVideo ? onToggleMute : null,
             size: 28,
             iconSize: 14,
+            tooltip: player.muted ? '取消静音 (M)' : '静音 (M)',
           ),
           const SizedBox(width: AppMetrics.gap),
 

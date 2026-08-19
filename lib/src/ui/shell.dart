@@ -310,6 +310,10 @@ class _AppShellState extends State<AppShell> {
       _player.resetRate();
       return KeyEventResult.handled;
     }
+    if (k == LogicalKeyboardKey.keyM) {
+      _player.toggleMute();
+      return KeyEventResult.handled;
+    }
     if (k == LogicalKeyboardKey.keyX ||
         k == LogicalKeyboardKey.delete ||
         k == LogicalKeyboardKey.backspace) {
