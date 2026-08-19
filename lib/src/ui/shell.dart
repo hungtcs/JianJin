@@ -379,6 +379,7 @@ class _AppShellState extends State<AppShell> {
     final menuActions = AppMenuActions(
       onOpen: _open,
       onAbout: () => setState(() => _aboutOpen = true),
+      onSettings: () => setState(() => _settingsOpen = true),
       onCloseFile: hasVideo ? _closeFile : null,
       onExport: _state.segments.isNotEmpty && !_exporting ? _export : null,
       onUndo: _state.canUndo ? _state.undo : null,

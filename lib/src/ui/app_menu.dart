@@ -7,8 +7,11 @@ import 'package:flutter/widgets.dart';
 class AppMenuActions {
   const AppMenuActions({
     required this.onOpen,
-    this.onAbout,
-    this.onSettings,
+    // 关于与设置不依赖任何应用状态，永远可用。设为必填是为了让漏接线
+    // 变成编译错误——它们曾因一次静默失败的编辑而未接上，表现为菜单项
+    // 点了没反应，很难查。
+    required this.onAbout,
+    required this.onSettings,
     this.onCloseFile,
     this.onExport,
     this.onUndo,
@@ -28,8 +31,8 @@ class AppMenuActions {
   });
 
   final VoidCallback onOpen;
-  final VoidCallback? onAbout;
-  final VoidCallback? onSettings;
+  final VoidCallback onAbout;
+  final VoidCallback onSettings;
   final VoidCallback? onCloseFile;
   final VoidCallback? onExport;
 
