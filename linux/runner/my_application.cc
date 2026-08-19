@@ -37,6 +37,37 @@ static void menu_action_cb(GSimpleAction* action, GVariant* parameter,
                                   nullptr, nullptr);
 }
 
+// Dart 侧推送过来的菜单项可用状态。
+//
+// 默认全部可用而非全部禁用：万一这条推送没能送达，用户看到的是「点了没反应」，
+// 而不是一个整体死掉的菜单——后者曾经真实发生过，且无法自愈。
+static void menu_method_call_cb(FlMethodChannel* channel,
+                                FlMethodCall* method_call, gpointer user_data) {
+  MyApplication* self = MY_APPLICATION(user_data);
+  const gchar* method = fl_method_call_get_name(method_call);
+  FlValue* args = fl_method_call_get_args(method_call);
+
+  if (g_strcmp0(method, "setEnabled") == 0 && args != nullptr &&
+      fl_value_get_type(args) == FL_VALUE_TYPE_MAP && self->window != nullptr) {
+    for (int i = 0; kMenuActions[i] != nullptr; i++) {
+      FlValue* value = fl_value_lookup_string(args, kMenuActions[i]);
+      if (value == nullptr || fl_value_get_type(value) != FL_VALUE_TYPE_BOOL) {
+        continue;
+      }
+      GAction* action =
+          g_action_map_lookup_action(G_ACTION_MAP(self->window),
+                                     kMenuActions[i]);
+      if (action != nullptr) {
+        g_simple_action_set_enabled(G_SIMPLE_ACTION(action),
+                                    fl_value_get_bool(value));
+      }
+    }
+  }
+
+  g_autoptr(FlValue) result = fl_value_new_null();
+  fl_method_call_respond_success(method_call, result, nullptr);
+}
+
 // 构建「主菜单」：标题栏左侧的汉堡按钮 + popover。
 //
 // 快捷键只写进标签文本，**不注册为 GTK 加速键**：注册后按键会被 GTK 抢先
@@ -209,9 +240,14 @@ static void my_application_activate(GApplication* application) {
   self->menu_channel = fl_method_channel_new(
       fl_engine_get_binary_messenger(fl_view_get_engine(view)),
       "jianjin/menu", FL_METHOD_CODEC(codec));
-  // 通道只用于 C → Dart 单向发送动作名。不做反向的状态同步：
-  // 那需要在两侧维护一致的启用表，而首帧推送可能早于处理器注册被丢弃，
-  // 菜单会因此永久变灰。菜单项一律可用，不适用的动作在 Dart 侧自然无操作。
+  fl_method_channel_set_method_call_handler(self->menu_channel,
+                                            menu_method_call_cb, self, nullptr);
+
+  // 握手：Dart 的首帧可能早于上面这行处理器注册，那一次 setEnabled 会因无人
+  // 接收而被丢弃。这里主动告知「C 侧已就绪」，由 Dart 重新推送一次完整状态，
+  // 避免菜单停在过期状态。
+  fl_method_channel_invoke_method(self->menu_channel, "ready", nullptr, nullptr,
+                                  nullptr, nullptr);
 
   gtk_widget_grab_focus(GTK_WIDGET(view));
 }
