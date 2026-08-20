@@ -12,6 +12,14 @@
 
 跨平台：macOS / Windows / Linux。
 
+> **`media_kit_video` 锁在 1.x，不要升到 2.x**。2.x 的 Swift 代码要用 libmpv 的
+> C 类型（`mpv_node_list`），但配套的 `media_kit_libs_macos_video` 至今最新仍是
+> 1.1.4，其 `Mpv.framework` 里**只有二进制、没有 `Headers/`**，因此 2.x 在 macOS
+> 上直接编译失败（`cannot find type 'mpv_node_list' in scope`）。
+>
+> Linux 不受影响——那边链接的是系统 libmpv，头文件由 `mpv-libs-devel` 提供，
+> 所以 2.x 在 Linux 上能编过，问题只在 macOS 暴露。上游补齐 macOS libs 包后可再升。
+
 > **libmpv 的分发方式因平台而异**：macOS 与 Windows 由 `media_kit_libs_*`
 > 随包提供预编译库；**Linux 链接系统的 libmpv**（`ldd` 可见
 > `libmpv.so.2 => /lib64/libmpv.so.2`），因此 Linux 必须安装 `mpv-libs`，

@@ -12,7 +12,11 @@ dependencies:
 
   # 播放：libmpv，能播 ffmpeg 能解的一切
   media_kit: ^1.1.10
-  media_kit_video: ^2.0.1
+  # 锁在 1.x：2.x 的 Swift 代码要用 libmpv 的 C 类型（mpv_node_list），
+  # 而 media_kit_libs_macos_video 至今最新仍是 1.1.4，其 Mpv.framework
+  # 只有二进制、没有 Headers/，因此 2.x 在 macOS 上编不过。
+  # 上游补齐 macOS libs 包后可再升。Linux 不受影响（用系统 libmpv 的头文件）。
+  media_kit_video: ^1.3.1
   media_kit_libs_video: ^1.0.4
 
   # 原生文件对话框（"原生感"的关键一环）
