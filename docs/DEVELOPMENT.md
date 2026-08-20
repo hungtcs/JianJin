@@ -77,6 +77,31 @@ flutter build linux --release        # 产物见下节
 
 图标与产品信息已配置，**构建尚未验证**。
 
+## macOS 分发
+
+```bash
+macos/packaging/build-dmg.sh                # 构建 release 后打包
+macos/packaging/build-dmg.sh --skip-build   # 复用已有 release 产物
+```
+
+产物是 `build/dmg/JianJin-<版本>-<架构>.dmg`，内含应用本体与指向 `/Applications`
+的符号链接，即 macOS 上「拖进去安装」的标准形态。
+
+只用系统自带的 `hdiutil`，不依赖 `create-dmg` 之类的第三方工具。也**没有**做背景图
+与图标定位——那需要用 AppleScript 操纵 Finder 写 `.DS_Store`，既脆弱又难以复现，
+对一个拖拽安装的镜像来说收益不值。
+
+### 未签名，别人打开会被拦
+
+Flutter 默认只做 **ad-hoc 签名**（`TeamIdentifier=not set`），没有 Apple 开发者
+证书，也未经公证。在**别人的** Mac 上首次打开会被 Gatekeeper 拦下，提示应用
+「已损坏」或无法验证开发者。两种绕过方式：
+
+- 右键点应用选「打开」，在弹窗里确认
+- 或 `xattr -dr com.apple.quarantine /Applications/JianJin.app`
+
+要做到双击即开，需要 Apple Developer 账号（付费）签名并公证，那是另一套流程。
+
 ## Linux 分发
 
 `flutter build linux --release` 产出便携目录：
