@@ -37,7 +37,7 @@ jobs:
     outputs:
       version: ${{ steps.v.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - id: v
         run: |
           set -euo pipefail
@@ -60,7 +60,7 @@ jobs:
     # 但只在 Apple Silicon 上验证过，因此按 arm64 分发。
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
@@ -68,7 +68,7 @@ jobs:
       - run: flutter pub get
       - name: 构建并打包 dmg
         run: macos/packaging/build-dmg.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: macos-arm64-dmg
           path: build/dmg/*.dmg
@@ -90,7 +90,7 @@ jobs:
     env:
       VERSION: ${{ needs.check.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: 安装构建依赖
         run: |
@@ -132,7 +132,7 @@ jobs:
           sudo chown -R "$(id -u):$(id -g)" build/rpm
           ls -lh build/rpm/
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: linux-x64-packages
           path: |
