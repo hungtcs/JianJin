@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/services.dart';
@@ -13,26 +14,33 @@ import '../services/ffmpeg_locator.dart';
 import '../services/reveal.dart';
 import '../state/app_state.dart';
 import 'about_dialog.dart';
+import '../settings.dart';
 import 'app_menu.dart';
+import 'native_menu_bridge.dart';
 import 'confirm_overwrite.dart';
 import 'segment_list.dart';
+import 'settings_panel.dart';
 import 'theme.dart';
+import 'timeline/detail_timeline.dart';
 import 'timeline/thumbnail_cache.dart';
 import 'timeline/timeline_panel.dart';
 import 'transport_bar.dart';
 import 'video_pane.dart';
+import 'window_menu.dart';
 import 'widgets/button.dart';
 import 'widgets/icons.dart' as ic;
 
 class AppShell extends StatefulWidget {
-  const AppShell({super.key});
+  const AppShell({super.key, required this.settings});
+
+  final AppSettings settings;
 
   @override
   State<AppShell> createState() => _AppShellState();
 }
 
 class _AppShellState extends State<AppShell> {
-  final _state = AppState();
+  late final AppState _state = AppState(settings: widget.settings);
   final _player = PlayerController();
   final _cache = ThumbnailCache();
   final _focus = FocusNode();
@@ -47,12 +55,14 @@ class _AppShellState extends State<AppShell> {
   _OverwritePrompt? _overwritePrompt;
 
   bool _aboutOpen = false;
+  bool _settingsOpen = false;
   String? _ffmpegVersion;
   String? _version;
 
   @override
   void initState() {
     super.initState();
+    widget.settings.addListener(_onChanged);
     _state.addListener(_onChanged);
     _player.addListener(_onChanged);
     _probeFfmpeg();
@@ -85,6 +95,7 @@ class _AppShellState extends State<AppShell> {
   @override
   void dispose() {
     _toastTimer?.cancel();
+    widget.settings.removeListener(_onChanged);
     _state.removeListener(_onChanged);
     _player.removeListener(_onChanged);
     _state.dispose();
@@ -275,6 +286,10 @@ class _AppShellState extends State<AppShell> {
         _export();
         return KeyEventResult.handled;
       }
+      if (k == LogicalKeyboardKey.comma) {
+        setState(() => _settingsOpen = true);
+        return KeyEventResult.handled;
+      }
       return KeyEventResult.ignored;
     }
 
@@ -294,10 +309,6 @@ class _AppShellState extends State<AppShell> {
       }
       return KeyEventResult.handled;
     }
-    if (k == LogicalKeyboardKey.keyA) {
-      _state.retroMark(pos);
-      return KeyEventResult.handled;
-    }
     if (k == LogicalKeyboardKey.keyL) {
       _player.faster();
       return KeyEventResult.handled;
@@ -310,6 +321,10 @@ class _AppShellState extends State<AppShell> {
       _player.resetRate();
       return KeyEventResult.handled;
     }
+    if (k == LogicalKeyboardKey.keyM) {
+      _player.toggleMute();
+      return KeyEventResult.handled;
+    }
     if (k == LogicalKeyboardKey.keyX ||
         k == LogicalKeyboardKey.delete ||
         k == LogicalKeyboardKey.backspace) {
@@ -319,6 +334,8 @@ class _AppShellState extends State<AppShell> {
     if (k == LogicalKeyboardKey.escape) {
       if (_overwritePrompt != null) {
         _resolveOverwrite(null);
+      } else if (_settingsOpen) {
+        setState(() => _settingsOpen = false);
       } else if (_aboutOpen) {
         setState(() => _aboutOpen = false);
       } else {
@@ -359,34 +376,37 @@ class _AppShellState extends State<AppShell> {
     final info = _state.info;
     final hasVideo = info != null && _state.phase == LoadPhase.ready;
 
+    final menuActions = AppMenuActions(
+      onOpen: _open,
+      onAbout: () => setState(() => _aboutOpen = true),
+      onSettings: () => setState(() => _settingsOpen = true),
+      onCloseFile: hasVideo ? _closeFile : null,
+      onExport: _state.segments.isNotEmpty && !_exporting ? _export : null,
+      onUndo: _state.canUndo ? _state.undo : null,
+      onDeleteSelected:
+          _state.selectedId != null ? _state.deleteSelected : null,
+      onClearAll: _state.segments.isNotEmpty ? _state.clearAll : null,
+      onPlayPause: hasVideo ? _player.playPause : null,
+      onFaster: hasVideo ? _player.faster : null,
+      onSlower: hasVideo ? _player.slower : null,
+      onResetRate: hasVideo ? _player.resetRate : null,
+      onBack5:
+          hasVideo ? () => _player.nudge(const Duration(seconds: -5)) : null,
+      onForward5:
+          hasVideo ? () => _player.nudge(const Duration(seconds: 5)) : null,
+      onPrevFrame: hasVideo ? () => _player.nudge(-info.frameDuration) : null,
+      onNextFrame: hasVideo ? () => _player.nudge(info.frameDuration) : null,
+      onMarkIn: hasVideo ? () => _state.markIn(_player.position) : null,
+      onMarkOut: hasVideo && _state.pendingIn != null
+          ? () => _state.markOut(_player.position)
+          : null,
+      onCancelPending: _state.pendingIn != null ? _state.cancelPending : null,
+    );
+
+    NativeMenuBridge.instance.setActions(menuActions);
+
     return AppMenu(
-      actions: AppMenuActions(
-        onOpen: _open,
-        onAbout: () => setState(() => _aboutOpen = true),
-        onCloseFile: hasVideo ? _closeFile : null,
-        onExport: _state.segments.isNotEmpty && !_exporting ? _export : null,
-        onUndo: _state.canUndo ? _state.undo : null,
-        onDeleteSelected:
-            _state.selectedId != null ? _state.deleteSelected : null,
-        onClearAll: _state.segments.isNotEmpty ? _state.clearAll : null,
-        onPlayPause: hasVideo ? _player.playPause : null,
-        onFaster: hasVideo ? _player.faster : null,
-        onSlower: hasVideo ? _player.slower : null,
-        onResetRate: hasVideo ? _player.resetRate : null,
-        onBack5:
-            hasVideo ? () => _player.nudge(const Duration(seconds: -5)) : null,
-        onForward5:
-            hasVideo ? () => _player.nudge(const Duration(seconds: 5)) : null,
-        onPrevFrame: hasVideo ? () => _player.nudge(-info.frameDuration) : null,
-        onNextFrame: hasVideo ? () => _player.nudge(info.frameDuration) : null,
-        onMarkIn: hasVideo ? () => _state.markIn(_player.position) : null,
-        onMarkOut: hasVideo && _state.pendingIn != null
-            ? () => _state.markOut(_player.position)
-            : null,
-        onRetro: hasVideo ? () => _state.retroMark(_player.position) : null,
-        onCancelPending: _state.pendingIn != null ? _state.cancelPending : null,
-        retroSeconds: AppMetrics.retroSeconds,
-      ),
+      actions: menuActions,
       child: Focus(
         focusNode: _focus,
         autofocus: true,
@@ -401,6 +421,7 @@ class _AppShellState extends State<AppShell> {
                     info: info,
                     keyframesLoading: _state.keyframesLoading,
                     onOpen: _open,
+                    menuActions: menuActions,
                   ),
                   Expanded(
                     child: Row(
@@ -437,6 +458,11 @@ class _AppShellState extends State<AppShell> {
                       ],
                     ),
                   ),
+                  ResizeHandle(
+                    // 向上拖（dy 为负）应当让时间轴变高
+                    onDelta: (dy) => widget.settings.timelineHeight =
+                        widget.settings.timelineHeight - dy,
+                  ),
                   TransportBar(
                     player: _player,
                     segmentCount: _state.segments.length,
@@ -445,8 +471,8 @@ class _AppShellState extends State<AppShell> {
                     pendingIn: _state.pendingIn,
                     onMarkIn: () => _state.markIn(_player.position),
                     onMarkOut: () => _state.markOut(_player.position),
-                    onRetro: () => _state.retroMark(_player.position),
                     onUndo: _state.undo,
+                    onToggleMute: _player.toggleMute,
                     onExport: _export,
                     exporting: _exporting,
                     exportProgress: _exportProgress,
@@ -463,6 +489,11 @@ class _AppShellState extends State<AppShell> {
                     waveform: _state.waveform,
                     thumbnails: _state.thumbnails,
                     cache: _cache,
+                    bands: TimelineBands(
+                      thumbnails: widget.settings.thumbnailsEnabled,
+                      waveform: widget.settings.waveformEnabled,
+                      height: widget.settings.timelineHeight,
+                    ),
                     thumbnailsLoading: _state.thumbnailsLoading,
                     waveformLoading: _state.waveformLoading,
                     selectedId: _state.selectedId,
@@ -487,6 +518,13 @@ class _AppShellState extends State<AppShell> {
                   onCancel: () => _resolveOverwrite(null),
                 ),
               ),
+            if (_settingsOpen)
+              Positioned.fill(
+                child: SettingsPanel(
+                  settings: widget.settings,
+                  onClose: () => setState(() => _settingsOpen = false),
+                ),
+              ),
             if (_aboutOpen)
               Positioned.fill(
                 child: AboutPanel(
@@ -507,11 +545,13 @@ class _TitleBar extends StatelessWidget {
     required this.info,
     required this.keyframesLoading,
     required this.onOpen,
+    required this.menuActions,
   });
 
   final dynamic info;
   final bool keyframesLoading;
   final VoidCallback onOpen;
+  final AppMenuActions menuActions;
 
   @override
   Widget build(BuildContext context) {
@@ -553,6 +593,10 @@ class _TitleBar extends StatelessWidget {
               Text('${(info.keyframes as List).length} 关键帧',
                   style: AppText.label),
           ],
+          const Spacer(),
+          // macOS 用原生 NSMenu，Linux 用标题栏上的原生 GTK 菜单，
+          // 只有 Windows 需要窗口内的汉堡按钮
+          if (Platform.isWindows) WindowMenuButton(actions: menuActions),
         ],
       ),
     );

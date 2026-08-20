@@ -64,7 +64,7 @@ class SegmentList extends StatelessWidget {
                     child: Padding(
                       padding: const EdgeInsets.all(20),
                       child: Text(
-                        '按 I 标入点\n按 O 标出点\n\n或按 A 回补前 ${AppMetrics.retroSeconds} 秒',
+                        '按 I 标入点\n按 O 标出点',
                         textAlign: TextAlign.center,
                         style: AppText.dim.copyWith(
                           color: AppColors.textFaint,

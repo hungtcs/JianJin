@@ -10,6 +10,7 @@ import 'package:jianjin/src/ui/timeline/timeline_panel.dart';
 /// 回归测试：命中测试曾经只看横坐标，导致刻度尺带虽然没有画片段，
 /// 横坐标一落在片段范围内就能把片段拖走 —— 交互区与可见区错位。
 const kDuration = Duration(minutes: 5);
+const kBands = TimelineBands();
 const kSegment = Segment(
   id: 'a',
   start: Duration(seconds: 60),
@@ -97,7 +98,7 @@ void main() {
     final box = tester.getRect(find.byType(DetailTimeline));
     final x = segmentCenterX(tester);
     // 缩略图带，确实画着片段的位置
-    final start = Offset(x, box.top + TimelineBands.thumbTop + 10);
+    final start = Offset(x, box.top + kBands.thumbTop + 10);
 
     final g = await tester.startGesture(start, kind: PointerDeviceKind.mouse);
     await tester.pump();
@@ -129,7 +130,7 @@ void main() {
     final box = tester.getRect(find.byType(DetailTimeline));
     final f = kSegment.end.inMilliseconds / kDuration.inMilliseconds;
     final xEnd = box.left + box.width * f;
-    final start = Offset(xEnd, box.top + TimelineBands.thumbTop + 10);
+    final start = Offset(xEnd, box.top + kBands.thumbTop + 10);
 
     final g = await tester.startGesture(start, kind: PointerDeviceKind.mouse);
     await tester.pump();
@@ -154,7 +155,7 @@ void main() {
     // 片段之外（片头附近）
     final start = Offset(
       box.left + box.width * 0.05,
-      box.top + TimelineBands.thumbTop + 10,
+      box.top + kBands.thumbTop + 10,
     );
 
     final g = await tester.startGesture(start, kind: PointerDeviceKind.mouse);

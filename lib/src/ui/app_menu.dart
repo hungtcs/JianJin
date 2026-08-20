@@ -7,7 +7,11 @@ import 'package:flutter/widgets.dart';
 class AppMenuActions {
   const AppMenuActions({
     required this.onOpen,
-    this.onAbout,
+    // 关于与设置不依赖任何应用状态，永远可用。设为必填是为了让漏接线
+    // 变成编译错误——它们曾因一次静默失败的编辑而未接上，表现为菜单项
+    // 点了没反应，很难查。
+    required this.onAbout,
+    required this.onSettings,
     this.onCloseFile,
     this.onExport,
     this.onUndo,
@@ -23,13 +27,12 @@ class AppMenuActions {
     this.onNextFrame,
     this.onMarkIn,
     this.onMarkOut,
-    this.onRetro,
     this.onCancelPending,
-    this.retroSeconds = 12,
   });
 
   final VoidCallback onOpen;
-  final VoidCallback? onAbout;
+  final VoidCallback onAbout;
+  final VoidCallback onSettings;
   final VoidCallback? onCloseFile;
   final VoidCallback? onExport;
 
@@ -48,10 +51,8 @@ class AppMenuActions {
 
   final VoidCallback? onMarkIn;
   final VoidCallback? onMarkOut;
-  final VoidCallback? onRetro;
   final VoidCallback? onCancelPending;
 
-  final int retroSeconds;
 }
 
 /// 真正的系统菜单栏（macOS 上是原生 NSMenu）。
@@ -202,10 +203,6 @@ class AppMenu extends StatelessWidget {
             PlatformMenuItem(
               label: '标出点  (O)',
               onSelected: actions.onMarkOut,
-            ),
-            PlatformMenuItem(
-              label: '回补 ${actions.retroSeconds} 秒  (A)',
-              onSelected: actions.onRetro,
             ),
             PlatformMenuItemGroup(members: [
               PlatformMenuItem(

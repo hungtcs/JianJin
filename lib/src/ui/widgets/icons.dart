@@ -9,13 +9,15 @@ enum AppIcon {
   pause,
   markIn,
   markOut,
-  retro,
   delete,
   export,
   folder,
   undo,
   chevronLeft,
   chevronRight,
+  menu,
+  volume,
+  volumeMuted,
 }
 
 class Icon extends StatelessWidget {
@@ -106,23 +108,42 @@ class _IconPainter extends CustomPainter {
           ..close();
         canvas.drawPath(tri, fill);
 
-      // 追溯：逆时针箭头，表示「回头补一段」
-      case AppIcon.retro:
-        final r = w * 0.3;
-        final c = Offset(w * 0.5, h * 0.54);
-        canvas.drawArc(
-          Rect.fromCircle(center: c, radius: r),
-          math.pi * 0.85,
-          math.pi * 1.35,
-          false,
-          stroke,
-        );
-        final head = Path()
-          ..moveTo(c.dx - r * 1.05, c.dy - r * 0.42)
-          ..lineTo(c.dx - r * 0.28, c.dy - r * 0.62)
-          ..lineTo(c.dx - r * 0.72, c.dy + r * 0.16)
+      case AppIcon.volume:
+      case AppIcon.volumeMuted:
+        // 喇叭本体：左侧方块 + 向右张开的梯形
+        final horn = Path()
+          ..moveTo(w * 0.12, h * 0.38)
+          ..lineTo(w * 0.30, h * 0.38)
+          ..lineTo(w * 0.50, h * 0.20)
+          ..lineTo(w * 0.50, h * 0.80)
+          ..lineTo(w * 0.30, h * 0.62)
+          ..lineTo(w * 0.12, h * 0.62)
           ..close();
-        canvas.drawPath(head, fill);
+        canvas.drawPath(horn, fill);
+        if (icon == AppIcon.volume) {
+          // 两道声波
+          for (final r in <double>[0.16, 0.28]) {
+            canvas.drawArc(
+              Rect.fromCircle(center: Offset(w * 0.50, h * 0.5), radius: w * r),
+              -math.pi / 3,
+              math.pi * 2 / 3,
+              false,
+              stroke,
+            );
+          }
+        } else {
+          // 静音：一个叉，比划掉声波更容易一眼看清
+          canvas.drawLine(
+            Offset(w * 0.62, h * 0.36),
+            Offset(w * 0.88, h * 0.64),
+            stroke,
+          );
+          canvas.drawLine(
+            Offset(w * 0.88, h * 0.36),
+            Offset(w * 0.62, h * 0.64),
+            stroke,
+          );
+        }
 
       case AppIcon.delete:
         canvas.drawLine(
@@ -172,6 +193,16 @@ class _IconPainter extends CustomPainter {
           ..lineTo(c.dx - r * 0.75, c.dy + r * 0.25)
           ..close();
         canvas.drawPath(head, fill);
+
+      // 汉堡：GNOME 主菜单的通行符号
+      case AppIcon.menu:
+        for (final fy in <double>[0.3, 0.5, 0.7]) {
+          canvas.drawLine(
+            Offset(w * 0.2, h * fy),
+            Offset(w * 0.8, h * fy),
+            stroke,
+          );
+        }
 
       case AppIcon.chevronLeft:
         final path = Path()

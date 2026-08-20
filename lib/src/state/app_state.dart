@@ -9,16 +9,23 @@ import '../models/segment.dart';
 import '../models/video_info.dart';
 import '../services/ffmpeg_service.dart';
 import '../services/ffprobe_service.dart';
-import '../ui/theme.dart';
+import '../settings.dart';
 
 enum LoadPhase { idle, probing, ready, failed }
 
 class AppState extends ChangeNotifier {
   AppState({
+    required AppSettings settings,
     FfprobeService? probe,
     FfmpegService? ffmpeg,
-  })  : _probe = probe ?? const FfprobeService(),
-        _ffmpeg = ffmpeg ?? const FfmpegService();
+  })  : _settings = settings,
+        _probe = probe ?? const FfprobeService(),
+        _ffmpeg = ffmpeg ?? const FfmpegService() {
+    _mode = settings.exportMode;
+    _settings.addListener(_onSettingsChanged);
+  }
+
+  final AppSettings _settings;
 
   final FfprobeService _probe;
   final FfmpegService _ffmpeg;
@@ -58,6 +65,11 @@ class AppState extends ChangeNotifier {
   bool _keyframesLoading = false;
   bool get keyframesLoading => _keyframesLoading;
 
+  /// 已经为哪个文件尝试过分析。用路径而非布尔值，是为了在换文件后自动失效；
+  /// 同时避免「没有音轨」这类必然为空的情形被反复重试。
+  String? _waveformTriedFor;
+  String? _thumbnailsTriedFor;
+
   bool _thumbnailsLoading = false;
   bool get thumbnailsLoading => _thumbnailsLoading;
 
@@ -68,7 +80,7 @@ class AppState extends ChangeNotifier {
   bool get analyzing =>
       _keyframesLoading || _thumbnailsLoading || _waveformLoading;
 
-  ExportMode _mode = ExportMode.lossless;
+  late ExportMode _mode;
   ExportMode get mode => _mode;
   set mode(ExportMode m) {
     if (_mode == m) return;
@@ -123,6 +135,8 @@ class AppState extends ChangeNotifier {
     _thumbnailsLoading = false;
     _waveformLoading = false;
     _keyframesLoading = false;
+    _waveformTriedFor = null;
+    _thumbnailsTriedFor = null;
     notifyListeners();
 
     try {
@@ -136,33 +150,75 @@ class AppState extends ChangeNotifier {
       return;
     }
 
-    // 关键帧、波形、缩略图都在后台跑，各自就绪各自刷新，不阻塞播放
-    _loadKeyframes(path);
-    _loadWaveform(path);
-    _loadThumbnails();
+    // 三个分析任务**串行**执行，各自就绪各自刷新。
+    // 并行会和 mpv 的解码一起抢 CPU——软解 4K 时这足以让播放卡顿。
+    _runAnalysis(path);
   }
 
-  void _loadKeyframes(String path) {
+  /// 后台分析流水线。顺序是按「先决条件 + 代价」排的：
+  /// 关键帧最先（切割正确性依赖它，且只读容器索引不解码）；
+  /// 波形其次（实测约 0.1 秒，几乎免费）；
+  /// 缩略图最后，且要用关键帧数量来决定抽稀步长。
+  /// 设置变化时补算缺失的分析。
+  ///
+  /// 分析只在打开文件时跑一次，若那时对应开关是关的就完全没有数据；
+  /// 之后在设置里打开只会显示一条空带。这里按需补上。
+  void _onSettingsChanged() {
+    final info = _info;
+    if (info == null) return;
+
+    if (_settings.waveformEnabled &&
+        _waveform.isEmpty &&
+        !_waveformLoading &&
+        _waveformTriedFor != info.path) {
+      _loadWaveform(info.path);
+    }
+    if (_settings.thumbnailsEnabled &&
+        _thumbnails.isEmpty &&
+        !_thumbnailsLoading &&
+        _thumbnailsTriedFor != info.path) {
+      _loadThumbnails();
+    }
+  }
+
+  Future<void> _runAnalysis(String path) async {
+    // 关键帧总是要扫：无损切割的正确性依赖它，而且只读容器索引不解码。
+    await _loadKeyframes(path);
+    if (_info?.path != path) return;
+
+    // 波形与缩略图可以在设置里关掉。关掉就完全不起 ffmpeg 进程，
+    // 而不只是不显示——它们正是打开大文件时的主要开销。
+    if (_settings.waveformEnabled) {
+      await _loadWaveform(path);
+      if (_info?.path != path) return;
+    }
+    if (_settings.thumbnailsEnabled) {
+      await _loadThumbnails();
+    }
+  }
+
+  Future<void> _loadKeyframes(String path) async {
     _keyframesLoading = true;
     notifyListeners();
-    _kfSub = _probe.keyframes(path).listen(
-      (list) {
+    try {
+      // 边扫边刷新，时间轴上的关键帧刻度会渐进出现，不必干等
+      await for (final list in _probe.keyframes(path)) {
         if (_info?.path != path) return;
         _info = _info!.copyWith(keyframes: list);
         notifyListeners();
-      },
-      onDone: () {
+      }
+    } catch (_) {
+      // 拿不到关键帧不影响播放与打点，只是无损切割会退化为不吸附
+    } finally {
+      if (_info?.path == path) {
         _keyframesLoading = false;
         notifyListeners();
-      },
-      onError: (_) {
-        _keyframesLoading = false;
-        notifyListeners();
-      },
-    );
+      }
+    }
   }
 
   Future<void> _loadWaveform(String path) async {
+    _waveformTriedFor = path;
     _waveformLoading = true;
     notifyListeners();
     final w = await _ffmpeg.waveform(path);
@@ -175,14 +231,21 @@ class AppState extends ChangeNotifier {
   Future<void> _loadThumbnails() async {
     final info = _info;
     if (info == null) return;
+    _thumbnailsTriedFor = info.path;
     _thumbnailsLoading = true;
     notifyListeners();
+
     final dir = p.join(
       Directory.systemTemp.path,
       'jianjin_thumbs',
       p.basenameWithoutExtension(info.path).hashCode.toRadixString(16),
     );
-    final files = await _ffmpeg.thumbnails(info: info, cacheDir: dir);
+    final files = await _ffmpeg.thumbnails(
+      info: info,
+      cacheDir: dir,
+      keyframeCount: info.keyframes.length,
+      count: _settings.thumbnailCount,
+    );
     if (_info?.path != info.path) return;
     _thumbnails = files;
     _thumbnailsLoading = false;
@@ -219,13 +282,6 @@ class AppState extends ChangeNotifier {
     _addSegment(start, at);
   }
 
-  /// 追溯打点：你永远是在片段开始之后才意识到「这段有用」。
-  /// 生成「N 秒前 → 现在」的片段，不用倒回去找起点。
-  void retroMark(Duration now, {int seconds = AppMetrics.retroSeconds}) {
-    final start = now - Duration(seconds: seconds);
-    _addSegment(start < Duration.zero ? Duration.zero : start, now);
-  }
-
   void _addSegment(Duration rawStart, Duration rawEnd) {
     var start = rawStart;
     var end = rawEnd;
@@ -236,7 +292,6 @@ class AppState extends ChangeNotifier {
     }
 
     // 显式打点不加留白：用户按 I/O 标的是哪就是哪，可预测优先。
-    // 「反应慢半拍」的场景由回补键 A 覆盖，那里才需要往前找。
     if (start < Duration.zero) start = Duration.zero;
     final dur = _info?.duration;
     if (dur != null && end > dur) end = dur;
@@ -373,6 +428,7 @@ class AppState extends ChangeNotifier {
 
   @override
   void dispose() {
+    _settings.removeListener(_onSettingsChanged);
     _kfSub?.cancel();
     super.dispose();
   }

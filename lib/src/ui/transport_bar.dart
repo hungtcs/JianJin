@@ -10,13 +10,13 @@ class TransportBar extends StatelessWidget {
   const TransportBar({
     super.key,
     required this.player,
+    required this.onToggleMute,
     required this.segmentCount,
     required this.totalKept,
     required this.canUndo,
     required this.pendingIn,
     required this.onMarkIn,
     required this.onMarkOut,
-    required this.onRetro,
     required this.onUndo,
     required this.onExport,
     required this.exporting,
@@ -28,6 +28,7 @@ class TransportBar extends StatelessWidget {
   });
 
   final PlayerController player;
+  final VoidCallback onToggleMute;
   final int segmentCount;
   final Duration totalKept;
   final bool canUndo;
@@ -35,7 +36,6 @@ class TransportBar extends StatelessWidget {
 
   final VoidCallback onMarkIn;
   final VoidCallback onMarkOut;
-  final VoidCallback onRetro;
   final VoidCallback onUndo;
   final VoidCallback onExport;
   final bool exporting;
@@ -71,6 +71,13 @@ class TransportBar extends StatelessWidget {
             onPressed: hasVideo ? player.playPause : null,
             size: 30,
             iconSize: 14,
+          ),
+          AppIconButton(
+            icon: player.muted ? ic.AppIcon.volumeMuted : ic.AppIcon.volume,
+            onPressed: hasVideo ? onToggleMute : null,
+            size: 28,
+            iconSize: 14,
+            tooltip: player.muted ? '取消静音 (M)' : '静音 (M)',
           ),
           const SizedBox(width: AppMetrics.gap),
 
@@ -108,13 +115,6 @@ class TransportBar extends StatelessWidget {
             icon: ic.AppIcon.markOut,
             shortcut: 'O',
             onPressed: hasVideo && pendingIn != null ? onMarkOut : null,
-          ),
-          const SizedBox(width: 6),
-          AppButton(
-            label: '回补 ${AppMetrics.retroSeconds}s',
-            icon: ic.AppIcon.retro,
-            shortcut: 'A',
-            onPressed: hasVideo ? onRetro : null,
           ),
           const SizedBox(width: 6),
           AppIconButton(
@@ -202,7 +202,6 @@ class _ProgressBar extends StatelessWidget {
   }
 }
 
-
 /// 导出模式切换。放在导出按钮旁边，因为它直接决定产物时长准不准。
 class _ModeToggle extends StatelessWidget {
   const _ModeToggle({required this.mode, required this.onChanged});
@@ -274,11 +273,9 @@ class _ModeChipState extends State<_ModeChip> {
             widget.label,
             style: AppText.label.copyWith(
               fontSize: 11,
-              color: widget.active
-                  ? const Color(0xFF0B1220)
-                  : AppColors.textDim,
-              fontWeight:
-                  widget.active ? FontWeight.w600 : FontWeight.w400,
+              color:
+                  widget.active ? const Color(0xFF0B1220) : AppColors.textDim,
+              fontWeight: widget.active ? FontWeight.w600 : FontWeight.w400,
             ),
           ),
         ),
