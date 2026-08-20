@@ -1,0 +1,5 @@
+# esbuild（Vite 的依赖）的 postinstall 负责校验并落位平台二进制，必须放行。
+# @scarf/scarf 只做匿名安装统计，没有它构建照跑。
+allowBuilds:
+  esbuild: true
+  '@scarf/scarf': false

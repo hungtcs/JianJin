@@ -1,0 +1,73 @@
+---
+title: 安装
+description: 下载 macOS / Linux 安装包，或从源码构建；以及剪金唯一的外部依赖 ffmpeg / ffprobe 该怎么装。
+sidebar:
+  label: 安装
+  order: 2
+---
+
+到 [GitHub Releases](https://github.com/hungtcs/JianJin/releases) 下载对应平台的产物：
+
+| 平台 | 产物 | 说明 |
+| --- | --- | --- |
+| macOS（Apple Silicon） | `JianJin-<版本>-arm64.dmg` | 拖进「应用程序」即可 |
+| Linux（通用） | `jianjin-<版本>-linux-x64.tar.gz` | 便携包，解压即跑 |
+| Fedora / RHEL 系 | `jianjin-<版本>-1.*.x86_64.rpm` | `sudo dnf install ./jianjin-*.rpm` |
+
+Linux 产物在 Ubuntu 24.04 上构建，链接的是系统 libmpv（`libmpv.so.2`），
+因此需要本机装有 `mpv-libs` / `libmpv2`。
+
+## 必须的外部程序
+
+剪金**只有一个外部依赖**：`ffmpeg` 与 `ffprobe`。没有它们打不开也导不出文件——
+但**播放不受影响**，那条路走的是内置解码器。
+
+| 平台 | 安装 |
+| --- | --- |
+| macOS | `brew install ffmpeg` |
+| Fedora | `sudo dnf install ffmpeg-free mpv-libs gtk3` |
+| Debian / Ubuntu | `sudo apt install ffmpeg libmpv2 libgtk-3-0` |
+| Windows | `winget install ffmpeg` |
+
+程序按这个顺序查找它们：
+
+<Steps>
+  <Step title="用户在设置里指定的路径" />
+  <Step title="应用同级目录" />
+  <Step title="macOS `.app` 内的 `Resources/`" />
+  <Step title="常见安装路径" />
+  <Step title="系统 `PATH`" />
+</Steps>
+
+:::note
+不能只靠 `PATH`——GUI 应用继承到的 `PATH` 往往很贫瘠，尤其在 macOS 上。
+装在非常规位置时，可以在[设置的「外部程序」一节](/settings#外部程序)手动指定。
+:::
+
+## 从源码构建
+
+需要 Flutter 3.47 或更高版本。
+
+```bash
+git clone https://github.com/hungtcs/JianJin.git
+cd JianJin
+flutter pub get
+flutter run -d macos          # 或 linux / windows
+```
+
+各平台额外的构建依赖：
+
+| 平台 | 构建依赖 |
+| --- | --- |
+| macOS | Xcode、CocoaPods（`brew install cocoapods`） |
+| Fedora | `clang cmake ninja-build pkgconf-pkg-config gtk3-devel xz-devel libstdc++-devel mpv-libs-devel` |
+| Debian / Ubuntu | `clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libmpv-dev` |
+| Windows | Visual Studio（Desktop C++） |
+
+:::warning
+Fedora 上的包名是 **`mpv-libs-devel`**，没有 `libmpv-devel` 这个包。
+装完可用 `pkg-config --modversion mpv` 验证，应为 2.3.0 或更高。
+:::
+
+完整的构建与打包说明见仓库里的
+[docs/DEVELOPMENT.md](https://github.com/hungtcs/JianJin/blob/master/docs/DEVELOPMENT.md)。
