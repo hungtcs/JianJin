@@ -159,6 +159,47 @@ spec 里三处刻意的写法：
 
 **尚未提供** AppImage / deb / Flatpak。
 
+## 自动发布（GitHub Actions）
+
+`.github/workflows/release.yml`：在 GitHub 上**发布 Release** 后自动构建并把安装包
+传回该 Release。
+
+```bash
+# 1. 先把 pubspec.yaml 的 version 改成目标版本并提交
+git tag v0.1.0 && git push origin v0.1.0
+gh release create v0.1.0 --generate-notes      # 触发工作流
+```
+
+| 平台 | Runner | 产物 |
+| --- | --- | --- |
+| macOS arm64 | `macos-latest` | `JianJin-<版本>-arm64.dmg` |
+| Linux x86_64 | `ubuntu-24.04` | `jianjin-<版本>-linux-x64.tar.gz`、`jianjin-<版本>-1.*.x86_64.rpm` |
+
+工作流直接调用仓库里的 `build-dmg.sh` / `build-rpm.sh`，不复制打包逻辑——本地能打出
+什么，CI 就打出什么。
+
+几处刻意的选择：
+
+- **先校验 tag 与 pubspec 版本一致**。打包脚本只认 `pubspec.yaml`，两者不一致时
+  产物名会和 tag 对不上，且事后很难看出是哪一步错了，所以在最前面就失败。
+- **Linux 在 Ubuntu 24.04 上构建，而不是 Fedora 容器里**。24.04 的 `libmpv-dev`
+  是 `libmpv.so.2`，与 spec 里按 soname 声明的 `Requires` 一致（22.04 是 `so.1`，
+  装到 Fedora 会解析不到）；且 glibc 2.39 比 Fedora 41 的 2.40 旧，产物能同时跑在
+  Fedora 40+ 与 Ubuntu 24.04+，反过来会把可用范围收窄。
+- **RPM 在 `fedora:41` 容器里打**。spec 打的是预编译产物，rpmbuild 不编译源码，
+  容器只是为了拿到 `rpmbuild` 与 `desktop-file-utils`。容器以 root 写出的文件
+  要 `chown` 回 runner 用户，否则后续步骤读不了。
+- **Flutter 版本写死而非 `channel: stable`**。否则同一个 tag 重跑一次就换了个
+  Flutter 版本，产物不可复现。升级时改 `env.FLUTTER_VERSION`。
+- **手动触发（workflow_dispatch）不上传到 Release**，只留作 Actions 产物，
+  便于在不发版的情况下验证打包脚本本身。
+
+dmg 仍未签名未公证，别人首次打开会被 Gatekeeper 拦下（见上文）。CI 也解决不了
+这件事，需要付费的 Apple 开发者账号。
+
+**Windows 未接入**：`windows/` 只有 Flutter 默认工程，也没有打包脚本，构建本身
+尚未验证过。
+
 ## 品牌资源
 
 Logo 源文件在 `design/logo/`（**不打包进应用**），产物在 `assets/logo/` 与各平台

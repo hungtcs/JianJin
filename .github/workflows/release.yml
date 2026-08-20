@@ -1,0 +1,149 @@
+# 发布流程：在 GitHub 上创建 Release 后自动构建并上传安装包。
+#
+#   git tag v0.1.0 && git push origin v0.1.0
+#   gh release create v0.1.0 --generate-notes     # 触发本工作流
+#
+# 产物：
+#   JianJin-<版本>-arm64.dmg        macOS（Apple Silicon）
+#   jianjin-<版本>-linux-x64.tar.gz Linux 便携包（解压即跑）
+#   jianjin-<版本>-1.*.x86_64.rpm   Fedora / RHEL 系
+#
+# 手动触发（workflow_dispatch）时不上传到 Release，只留作 Actions 产物，
+# 便于在不发版的情况下验证打包脚本本身。
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # 与本地开发环境一致。不写 channel: stable —— 那会让「同一个 tag 重新跑一次
+  # 就换了个 Flutter 版本」，产物不可复现。
+  FLUTTER_VERSION: 3.47.0
+
+jobs:
+  # 版本号有两个来源：git tag 与 pubspec.yaml。打包脚本只认后者，
+  # 所以两者不一致时产物名会和 tag 对不上。与其事后困惑，不如在这里先失败。
+  check:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: |
+          set -euo pipefail
+          VERSION="$(sed -n 's/^version: *\([0-9.]*\).*/\1/p' pubspec.yaml)"
+          [[ -n "$VERSION" ]] || { echo "无法从 pubspec.yaml 解析版本号" >&2; exit 1; }
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "pubspec 版本：$VERSION"
+
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            TAG="${{ github.event.release.tag_name }}"
+            if [[ "${TAG#v}" != "$VERSION" ]]; then
+              echo "::error::tag ($TAG) 与 pubspec.yaml 版本 ($VERSION) 不一致，请先同步再发版"
+              exit 1
+            fi
+          fi
+
+  macos:
+    needs: check
+    # arm64 runner。构建出的仍是通用二进制（Flutter release 默认如此），
+    # 但只在 Apple Silicon 上验证过，因此按 arm64 分发。
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter pub get
+      - name: 构建并打包 dmg
+        run: macos/packaging/build-dmg.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-arm64-dmg
+          path: build/dmg/*.dmg
+          if-no-files-found: error
+      - name: 上传到 Release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ github.event.release.tag_name }}" build/dmg/*.dmg --clobber
+
+  linux:
+    needs: check
+    # 在 Ubuntu 24.04 上构建而非 Fedora 容器里，有两个原因：
+    #   1. 24.04 的 libmpv-dev 是 libmpv.so.2，与 spec 里 Requires 的 soname 一致；
+    #      22.04 是 so.1，装到 Fedora 上会解析不到依赖。
+    #   2. glibc 2.39 比 Fedora 41 的 2.40 旧，产物能同时跑在 Fedora 40+ 与
+    #      Ubuntu 24.04+。反过来（Fedora 构建）会把可用范围收窄。
+    runs-on: ubuntu-24.04
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装构建依赖
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev libmpv-dev
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      - run: flutter pub get
+      - run: flutter build linux --release
+
+      - name: 打便携 tar.gz
+        run: |
+          set -euo pipefail
+          STAGE="$(mktemp -d)"
+          DEST="$STAGE/jianjin-$VERSION"
+          mkdir -p "$DEST"
+          cp -a build/linux/x64/release/bundle/. "$DEST/"
+          # 一并带上 .desktop 与图标，方便用户自行装进 ~/.local
+          cp linux/packaging/jianjin.desktop "$DEST/"
+          cp -a linux/packaging/icons "$DEST/"
+          mkdir -p build/tarball
+          tar -C "$STAGE" -czf "build/tarball/jianjin-$VERSION-linux-x64.tar.gz" "jianjin-$VERSION"
+          ls -lh build/tarball/
+
+      - name: 打 RPM
+        # spec 打的是预编译产物，rpmbuild 本身不编译源码，所以在 Fedora 容器里
+        # 跑一遍就够了 —— 只是为了拿到 rpmbuild 与 desktop-file-utils。
+        run: |
+          set -euo pipefail
+          docker run --rm -v "$PWD":/src -w /src fedora:41 bash -c '
+            dnf install -y -q rpm-build desktop-file-utils
+            linux/packaging/rpm/build-rpm.sh'
+          # 容器以 root 写出的文件，交还给 runner 用户，否则后续步骤读不了
+          sudo chown -R "$(id -u):$(id -g)" build/rpm
+          ls -lh build/rpm/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-x64-packages
+          path: |
+            build/tarball/*.tar.gz
+            build/rpm/*.rpm
+          if-no-files-found: error
+
+      - name: 上传到 Release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" \
+            build/tarball/*.tar.gz build/rpm/*.rpm --clobber

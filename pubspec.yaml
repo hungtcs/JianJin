@@ -1,7 +1,7 @@
 name: jianjin
 description: 剪金 JianJin —— 快速挑选视频中有用的片段并无损导出
 publish_to: 'none'
-version: 0.1.0
+version: 0.0.1
 
 environment:
   sdk: '>=3.4.0 <4.0.0'
