@@ -18,6 +18,10 @@ struct _MyApplication {
 
 G_DEFINE_TYPE(MyApplication, my_application, GTK_TYPE_APPLICATION)
 
+// 最小窗口尺寸。三端必须一致，见 test/window_min_size_contract_test.dart。
+static const int kMinWindowWidth = 800;
+static const int kMinWindowHeight = 600;
+
 // 菜单动作。与 Dart 侧 AppMenuActions 的字段一一对应，
 // 名字即通道上传递的标识。「关于」不在此列——它由 GtkAboutDialog 就地处理。
 static const char* kMenuActions[] = {"open",     "close", "export", "undo",
@@ -211,6 +215,15 @@ static void my_application_activate(GApplication* application) {
   }
 
   gtk_window_set_default_size(window, 1280, 720);
+
+  // 最小窗口尺寸。三端必须一致，见 test/window_min_size_contract_test.dart。
+  // 用 geometry hints 而不是 gtk_widget_set_size_request：前者是给窗口管理器的
+  // 约束，拖拽边框时才真的拦得住；后者只影响 GTK 自己的尺寸协商。
+  GdkGeometry geometry;
+  geometry.min_width = kMinWindowWidth;
+  geometry.min_height = kMinWindowHeight;
+  gtk_window_set_geometry_hints(window, nullptr, &geometry, GDK_HINT_MIN_SIZE);
+
   set_window_icon(window);
 
   g_autoptr(FlDartProject) project = fl_dart_project_new();

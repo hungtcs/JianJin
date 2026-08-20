@@ -37,6 +37,11 @@ int Scale(int source, double scale_factor) {
   return static_cast<int>(source * scale_factor);
 }
 
+// 最小窗口尺寸（逻辑像素）。三端必须一致，
+// 见 test/window_min_size_contract_test.dart。
+const int kMinWindowWidth = 800;
+const int kMinWindowHeight = 600;
+
 // Dynamically loads the |EnableNonClientDpiScaling| from the User32 module.
 // This API is only needed for PerMonitor V1 awareness mode.
 void EnableFullDpiSupportIfAvailable(HWND hwnd) {
@@ -197,6 +202,18 @@ Win32Window::MessageHandler(HWND hwnd,
 
       return 0;
     }
+    case WM_GETMINMAXINFO: {
+      // 模板里没有这一段，缺了窗口就能被拖到只剩标题栏。
+      // ptMinTrackSize 是**整窗**尺寸（含边框与标题栏），比内容区略大一点，
+      // 这点差异不值得为它去算 AdjustWindowRect。
+      HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+      double scale_factor = FlutterDesktopGetDpiForMonitor(monitor) / 96.0;
+      auto* info = reinterpret_cast<MINMAXINFO*>(lparam);
+      info->ptMinTrackSize.x = Scale(kMinWindowWidth, scale_factor);
+      info->ptMinTrackSize.y = Scale(kMinWindowHeight, scale_factor);
+      return 0;
+    }
+
     case WM_SIZE: {
       RECT rect = GetClientArea();
       if (child_content_ != nullptr) {

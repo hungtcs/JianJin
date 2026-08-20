@@ -27,9 +27,13 @@
 
 ## 环境准备
 
-三个平台都需要本机有 **ffmpeg / ffprobe**。程序按「应用同级目录 → macOS
-`.app` 内 `Resources/` → 常见安装路径 → 系统 `PATH`」的顺序查找——GUI 应用
-继承的 `PATH` 往往很贫瘠，不能只靠 `PATH`。
+三个平台都需要本机有 **ffmpeg / ffprobe**。程序按「用户在设置里指定 → 应用
+同级目录 → macOS `.app` 内 `Resources/` → 常见安装路径 → 系统 `PATH`」的顺序
+查找（`FfmpegLocator`）——GUI 应用继承的 `PATH` 往往很贫瘠，不能只靠 `PATH`。
+
+用户指定的路径**存在才采纳**，失效时自动回退到后续查找，回退的事实由
+`BinaryStatus.customStale` 交给设置界面显示。这样既不会因一次误选把应用钉死，
+也不会静默变成另一个 ffmpeg。
 
 | 平台 | 运行时 | 额外的构建依赖 |
 | --- | --- | --- |

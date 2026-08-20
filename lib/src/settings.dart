@@ -22,6 +22,8 @@ class AppSettings extends ChangeNotifier {
   static const _kExportMode = 'exportMode';
   static const _kThumbnailCount = 'thumbnailCount';
   static const _kTimelineHeight = 'timelineHeight';
+  static const _kFfmpegPath = 'ffmpegPath';
+  static const _kFfprobePath = 'ffprobePath';
 
   bool get thumbnailsEnabled => _values[_kThumbnails] as bool? ?? true;
   bool get waveformEnabled => _values[_kWaveform] as bool? ?? true;
@@ -32,6 +34,21 @@ class AppSettings extends ChangeNotifier {
   /// 细节轨总高度，由播放区与底部之间的分隔条拖拽设定
   double get timelineHeight =>
       (_values[_kTimelineHeight] as num?)?.toDouble() ?? 96.0;
+
+  /// 用户手动指定的 ffmpeg / ffprobe 路径，null 表示交给自动查找。
+  /// 存在的意义是兜底：装在非常规位置、解压版、或多版本共存时，
+  /// 自动查找链再长也总有覆盖不到的机器。
+  String? get ffmpegPath => _path(_kFfmpegPath);
+  String? get ffprobePath => _path(_kFfprobePath);
+
+  // 空串一律归一成 null，否则「清除后」与「从未设置」在 locator 那边
+  // 会是两种行为
+  String? _path(String key) {
+    final v = _values[key];
+    if (v is! String) return null;
+    final t = v.trim();
+    return t.isEmpty ? null : t;
+  }
 
   ExportMode get exportMode => ExportMode.values.firstWhere(
         (m) => m.name == _values[_kExportMode],
@@ -59,6 +76,18 @@ class AppSettings extends ChangeNotifier {
   set exportMode(ExportMode v) {
     if (exportMode == v) return;
     _set(_kExportMode, v.name);
+  }
+
+  set ffmpegPath(String? v) {
+    final n = (v ?? '').trim();
+    if (ffmpegPath == (n.isEmpty ? null : n)) return;
+    _set(_kFfmpegPath, n.isEmpty ? null : n);
+  }
+
+  set ffprobePath(String? v) {
+    final n = (v ?? '').trim();
+    if (ffprobePath == (n.isEmpty ? null : n)) return;
+    _set(_kFfprobePath, n.isEmpty ? null : n);
   }
 
   set timelineHeight(double v) {

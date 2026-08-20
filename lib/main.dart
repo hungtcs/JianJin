@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:media_kit/media_kit.dart';
 
+import 'src/services/ffmpeg_locator.dart';
 import 'src/settings.dart';
 import 'src/ui/shell.dart';
 import 'src/ui/theme.dart';
@@ -11,6 +12,14 @@ Future<void> main() async {
   MediaKit.ensureInitialized();
   // 设置必须在建界面之前读好：缩略图/波形开关决定打开文件后要不要起分析进程
   final settings = await AppSettings.load();
+  // 自定义二进制路径必须在任何 ffmpeg 调用之前生效，且随设置变化重新应用——
+  // locator 会缓存查找结果，只有这里通知它才知道该重算。
+  void syncLocator() => FfmpegLocator.setOverrides(
+        ffmpeg: settings.ffmpegPath,
+        ffprobe: settings.ffprobePath,
+      );
+  syncLocator();
+  settings.addListener(syncLocator);
   runApp(JianJinApp(settings: settings));
 }
 

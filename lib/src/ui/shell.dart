@@ -148,6 +148,17 @@ class _AppShellState extends State<AppShell> {
     _cache.clear();
     await _state.open(path);
     if (_state.phase == LoadPhase.failed) {
+      // 找不到 ffprobe / ffmpeg 是最常见的失败原因，而原始的 ProcessException
+      // 对用户毫无意义。这种情况直接把人送到能改路径的地方，并且不自动消失。
+      if (FfmpegLocator.looksLikeMissingBinary(_state.error)) {
+        _showToast(
+          '找不到 ffmpeg / ffprobe，无法读取和导出视频（播放不受影响）',
+          actionLabel: '打开设置',
+          onAction: () => setState(() => _settingsOpen = true),
+          duration: const Duration(seconds: 12),
+        );
+        return;
+      }
       _showToast('打不开：${_state.error}');
       return;
     }
