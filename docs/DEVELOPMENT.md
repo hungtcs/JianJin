@@ -182,10 +182,15 @@ gh release create v0.1.0 --generate-notes      # 触发工作流
 
 - **先校验 tag 与 pubspec 版本一致**。打包脚本只认 `pubspec.yaml`，两者不一致时
   产物名会和 tag 对不上，且事后很难看出是哪一步错了，所以在最前面就失败。
-- **Linux 在 Ubuntu 24.04 上构建，而不是 Fedora 容器里**。24.04 的 `libmpv-dev`
-  是 `libmpv.so.2`，与 spec 里按 soname 声明的 `Requires` 一致（22.04 是 `so.1`，
-  装到 Fedora 会解析不到）；且 glibc 2.39 比 Fedora 41 的 2.40 旧，产物能同时跑在
-  Fedora 40+ 与 Ubuntu 24.04+，反过来会把可用范围收窄。
+- **Linux 在 Ubuntu 24.04 上构建，而不是 Fedora 容器里**。决定因素是 libmpv 的
+  soname：`libmedia_kit_video_plugin.so` 链接的是 `libmpv.so.2`，与 spec 里按
+  soname 声明的 `Requires` 一致；22.04 的 `libmpv-dev` 是 `so.1`，装到 Fedora 会
+  解析不到依赖。在 Fedora 容器里构建同样能得到 so.2，但会把 glibc 下限抬到容器的
+  版本，白白收窄可用范围。
+
+  v0.0.1 产物实测：全部 `.so` 与可执行文件引用的最高符号版本是 **GLIBC_2.34**
+  （`readelf -V`），即 Fedora 35+ / RHEL 9+ / Ubuntu 22.04+ 都能跑——构建机的
+  glibc 2.39 并不是下限，链接器对每个符号取的是可用的最老版本。
 - **RPM 在 `fedora:41` 容器里打**。spec 打的是预编译产物，rpmbuild 不编译源码，
   容器只是为了拿到 `rpmbuild` 与 `desktop-file-utils`。容器以 root 写出的文件
   要 `chown` 回 runner 用户，否则后续步骤读不了。

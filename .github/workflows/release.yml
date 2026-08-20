@@ -84,8 +84,8 @@ jobs:
     # 在 Ubuntu 24.04 上构建而非 Fedora 容器里，有两个原因：
     #   1. 24.04 的 libmpv-dev 是 libmpv.so.2，与 spec 里 Requires 的 soname 一致；
     #      22.04 是 so.1，装到 Fedora 上会解析不到依赖。
-    #   2. glibc 2.39 比 Fedora 41 的 2.40 旧，产物能同时跑在 Fedora 40+ 与
-    #      Ubuntu 24.04+。反过来（Fedora 构建）会把可用范围收窄。
+    #   2. 在 Fedora 容器里构建同样能拿到 so.2，但会把 glibc 下限抬到容器的版本，
+    #      白白收窄可用范围。v0.0.1 产物实测最高只引用到 GLIBC_2.34。
     runs-on: ubuntu-24.04
     env:
       VERSION: ${{ needs.check.outputs.version }}
